@@ -14,6 +14,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { AutoScreenshot } from './auto-screenshot'
 import { BuildTab } from './build-tab'
 import { CommunityViewerToolbarLeft, CommunityViewerToolbarRight } from './viewer-toolbar'
 
@@ -194,6 +195,9 @@ export function SceneLoader({ initialScene, meta }: SceneLoaderProps) {
 
   return (
     <div className="relative h-screen w-screen">
+      {/* Step 3: captures the canvas as a PNG when arriving from Step 1
+          with ?autoScreenshot=1 — no-ops otherwise. */}
+      <AutoScreenshot />
       {conflict && (
         <div className="pointer-events-auto absolute top-4 left-1/2 z-50 w-full max-w-md -translate-x-1/2 rounded-lg border border-border bg-background p-4 shadow-xl">
           <h2 className="font-semibold text-sm">Another session saved first — refresh?</h2>

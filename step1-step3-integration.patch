@@ -1,0 +1,1119 @@
+diff --git a/.env.example b/.env.example
+index daa8404..ef3aca6 100644
+--- a/.env.example
++++ b/.env.example
+@@ -5,3 +5,12 @@
+ 
+ # Dev server port (default: 3000)
+ # PORT=3000
++
++# --- Vercel deployment: required for scene persistence to work ---
++# Without these, scenes are saved to a local SQLite file, which does NOT
++# persist on Vercel's stateless serverless functions — a scene created in
++# Step 1 will likely 404 when Step 2 tries to load it.
++# Get these from your Supabase project's Settings -> API page.
++# Run supabase-schema.sql (packages/mcp/src/storage/) in the SQL Editor first.
++# SUPABASE_URL=https://your-project.supabase.co
++# SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+diff --git a/apps/editor/app/step1/page.tsx b/apps/editor/app/step1/page.tsx
+new file mode 100644
+index 0000000..4088b97
+--- /dev/null
++++ b/apps/editor/app/step1/page.tsx
+@@ -0,0 +1,166 @@
++'use client'
++
++import useScene from '@pascal-app/core/store'
++import { WallNode, ZoneNode, SiteNode, BuildingNode, LevelNode } from '@pascal-app/core/schema'
++import { useRouter } from 'next/navigation'
++import { useState } from 'react'
++import { generateArrangement } from '@/lib/prefab/assembly'
++import { rectangleCorners } from '@/lib/prefab/assembly'
++import { MODULE_CATALOG } from '@/lib/prefab/catalog'
++import { parseCustomerRequest } from '@/lib/prefab/stage1'
++
++const WALL_THICKNESS = 0.15
++const WALL_HEIGHT = 2.7
++
++export default function Step1Page() {
++  const router = useRouter()
++  const [apiKey, setApiKey] = useState('')
++  const [customerRequest, setCustomerRequest] = useState('')
++  const [status, setStatus] = useState<{ text: string; kind: 'idle' | 'error' | 'warn' | 'ok' }>({
++    text: '',
++    kind: 'idle',
++  })
++  const [busy, setBusy] = useState(false)
++
++  async function handleSubmit() {
++    if (!apiKey.trim()) {
++      setStatus({ text: 'Please enter your Anthropic API key.', kind: 'error' })
++      return
++    }
++    if (!customerRequest.trim()) {
++      setStatus({ text: 'Please enter the customer request.', kind: 'error' })
++      return
++    }
++
++    setBusy(true)
++    setStatus({ text: 'Stage 1: asking Claude to parse the request...', kind: 'idle' })
++
++    try {
++      const stage1 = await parseCustomerRequest(customerRequest, apiKey)
++      const unmappedNote = stage1.unmapped.length ? ` (unmapped: ${stage1.unmapped.join(', ')})` : ''
++      setStatus({ text: `Stage 1 done: ${stage1.modules.length} module types found.${unmappedNote}`, kind: 'idle' })
++
++      const arrangement = generateArrangement(stage1.modules)
++      if (!arrangement.valid) {
++        setStatus({ text: `Stage 2 rejected this configuration:\n${arrangement.warnings.join('\n')}`, kind: 'warn' })
++        setBusy(false)
++        return
++      }
++
++      setStatus({ text: 'Stage 2 done. Building the scene graph...', kind: 'idle' })
++
++      // Reset any local editor state before building a fresh scene, so we
++      // don't accidentally merge with whatever was in this browser's
++      // IndexedDB-persisted store from a previous session.
++      const scene = useScene.getState()
++      scene.clearScene()
++
++      const site = SiteNode.parse({ name: `Customer request — ${new Date().toLocaleDateString()}` })
++      scene.createNode(site)
++      const building = BuildingNode.parse({ name: 'Main house' })
++      scene.createNode(building, site.id)
++      const level = LevelNode.parse({ name: 'Ground floor', level: 0 })
++      scene.createNode(level, building.id)
++
++      for (const placed of arrangement.modules) {
++        const spec = MODULE_CATALOG[placed.moduleId]
++        const corners = rectangleCorners(placed.position, spec.size.length, spec.size.width, placed.rotation)
++        const wallIds: string[] = []
++        for (let i = 0; i < corners.length; i++) {
++          const wall = WallNode.parse({
++            start: corners[i],
++            end: corners[(i + 1) % corners.length],
++            thickness: WALL_THICKNESS,
++            height: WALL_HEIGHT,
++          })
++          scene.createNode(wall, level.id)
++          wallIds.push(wall.id)
++        }
++        const zone = ZoneNode.parse({
++          name: spec.label,
++          polygon: corners,
++          boundaryWallIds: wallIds,
++          metadata: { moduleId: placed.moduleId },
++        })
++        scene.createNode(zone, level.id)
++      }
++
++      const finalState = useScene.getState()
++      setStatus({ text: 'Saving scene...', kind: 'idle' })
++
++      const response = await fetch('/api/scenes', {
++        method: 'POST',
++        headers: { 'Content-Type': 'application/json' },
++        body: JSON.stringify({
++          name: customerRequest.slice(0, 100),
++          graph: { nodes: finalState.nodes, rootNodeIds: finalState.rootNodeIds },
++        }),
++      })
++
++      if (!response.ok) {
++        const body = await response.text()
++        throw new Error(`Failed to save scene: ${response.status} ${body}`)
++      }
++
++      const meta = await response.json()
++      setStatus({ text: 'Done — opening the scene...', kind: 'ok' })
++      router.push(`/scene/${meta.id}?autoScreenshot=1`)
++    } catch (err) {
++      setStatus({ text: `Error: ${err instanceof Error ? err.message : String(err)}`, kind: 'error' })
++      setBusy(false)
++    }
++  }
++
++  return (
++    <div className="mx-auto flex min-h-screen max-w-lg flex-col justify-center gap-4 p-6">
++      <div>
++        <h1 className="font-semibold text-xl">Step 1 — customer request</h1>
++        <p className="mt-1 text-muted-foreground text-sm">
++          Your API key stays in this browser tab and is sent directly to Anthropic — it never
++          touches our servers except when we save the finished scene graph.
++        </p>
++      </div>
++
++      <label className="text-sm">
++        Anthropic API key
++        <input
++          className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
++          onChange={(e) => setApiKey(e.target.value)}
++          placeholder="sk-ant-..."
++          type="password"
++          value={apiKey}
++        />
++      </label>
++
++      <label className="text-sm">
++        Customer request
++        <textarea
++          className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
++          onChange={(e) => setCustomerRequest(e.target.value)}
++          placeholder="2 bedrooms, 1 bathroom, a covered porch"
++          rows={4}
++          value={customerRequest}
++        />
++      </label>
++
++      <button
++        className="rounded-md bg-foreground px-4 py-2 font-medium text-background text-sm disabled:opacity-50"
++        disabled={busy}
++        onClick={handleSubmit}
++        type="button"
++      >
++        {busy ? 'Working...' : 'Generate house'}
++      </button>
++
++      {status.text && (
++        <pre
++          className={`whitespace-pre-wrap text-xs ${
++            status.kind === 'error' ? 'text-red-600' : status.kind === 'warn' ? 'text-amber-600' : status.kind === 'ok' ? 'text-green-700' : 'text-muted-foreground'
++          }`}
++        >
++          {status.text}
++        </pre>
++      )}
++    </div>
++  )
++}
+diff --git a/apps/editor/components/auto-screenshot.tsx b/apps/editor/components/auto-screenshot.tsx
+new file mode 100644
+index 0000000..85db3d5
+--- /dev/null
++++ b/apps/editor/components/auto-screenshot.tsx
+@@ -0,0 +1,77 @@
++'use client'
++
++import { useRouter, useSearchParams } from 'next/navigation'
++import { useEffect, useState } from 'react'
++
++/**
++ * Step 3 — after Step 1 builds a scene and redirects here with
++ * ?autoScreenshot=1, wait for the 3D canvas to render a few frames, then
++ * capture it the same way the editor's own "Take Screenshot" command
++ * palette action does (packages/editor/src/components/ui/command-palette/
++ * editor-commands.tsx — canvas.toDataURL('image/png')), and show it as an
++ * overlay with a download link instead of triggering an automatic
++ * download.
++ */
++export function AutoScreenshot() {
++  const searchParams = useSearchParams()
++  const router = useRouter()
++  const [imageUrl, setImageUrl] = useState<string | null>(null)
++
++  useEffect(() => {
++    if (searchParams.get('autoScreenshot') !== '1') return
++
++    let cancelled = false
++    const timer = setTimeout(() => {
++      if (cancelled) return
++      const canvas = document.querySelector('canvas')
++      if (!canvas) return
++      try {
++        setImageUrl(canvas.toDataURL('image/png'))
++      } catch {
++        // Canvas may be tainted or not yet ready — leave imageUrl unset,
++        // the user can still use the editor's own screenshot command.
++      }
++      // Strip the query param so refreshing doesn't re-trigger this.
++      router.replace(window.location.pathname)
++    }, 3000)
++
++    return () => {
++      cancelled = true
++      clearTimeout(timer)
++    }
++  }, [searchParams, router])
++
++  if (!imageUrl) return null
++
++  return (
++    <div
++      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-6"
++      onClick={() => setImageUrl(null)}
++    >
++      <div
++        className="max-h-[85vh] max-w-3xl overflow-auto rounded-lg bg-background p-4"
++        onClick={(e) => e.stopPropagation()}
++      >
++        <p className="mb-2 text-sm">Step 3 — generated image</p>
++        {/* biome-ignore lint: preview of a locally generated data URL */}
++        <img alt="Generated house preview" className="w-full rounded-md border border-border" src={imageUrl} />
++        <div className="mt-3 flex justify-end gap-2">
++          <a
++            className="rounded-md border border-border px-3 py-1.5 text-sm"
++            download={`house_${Date.now()}.png`}
++            href={imageUrl}
++          >
++            Download PNG
++          </a>
++          <button
++            className="rounded-md bg-foreground px-3 py-1.5 text-background text-sm"
++            onClick={() => setImageUrl(null)}
++            type="button"
++          >
++            Close
++          </button>
++        </div>
++      </div>
++    </div>
++  )
++}
+diff --git a/apps/editor/components/scene-loader.tsx b/apps/editor/components/scene-loader.tsx
+index 9b3b679..a8c3440 100644
+--- a/apps/editor/components/scene-loader.tsx
++++ b/apps/editor/components/scene-loader.tsx
+@@ -14,6 +14,7 @@ import Image from 'next/image'
+ import Link from 'next/link'
+ import { useRouter } from 'next/navigation'
+ import { useCallback, useEffect, useRef, useState } from 'react'
++import { AutoScreenshot } from './auto-screenshot'
+ import { BuildTab } from './build-tab'
+ import { CommunityViewerToolbarLeft, CommunityViewerToolbarRight } from './viewer-toolbar'
+ 
+@@ -194,6 +195,9 @@ export function SceneLoader({ initialScene, meta }: SceneLoaderProps) {
+ 
+   return (
+     <div className="relative h-screen w-screen">
++      {/* Step 3: captures the canvas as a PNG when arriving from Step 1
++          with ?autoScreenshot=1 — no-ops otherwise. */}
++      <AutoScreenshot />
+       {conflict && (
+         <div className="pointer-events-auto absolute top-4 left-1/2 z-50 w-full max-w-md -translate-x-1/2 rounded-lg border border-border bg-background p-4 shadow-xl">
+           <h2 className="font-semibold text-sm">Another session saved first — refresh?</h2>
+diff --git a/apps/editor/lib/prefab/assembly.ts b/apps/editor/lib/prefab/assembly.ts
+new file mode 100644
+index 0000000..41d9104
+--- /dev/null
++++ b/apps/editor/lib/prefab/assembly.ts
+@@ -0,0 +1,74 @@
++import { MODULE_CATALOG, ASSEMBLY_LIMITS } from './catalog'
++
++export interface ModuleRequest {
++  moduleId: string
++  quantity: number
++}
++
++export interface PlacedModule {
++  moduleId: string
++  instanceId: string
++  position: { x: number; z: number }
++  rotation: 0 | 90 | 180 | 270
++}
++
++export interface Arrangement {
++  modules: PlacedModule[]
++  valid: boolean
++  warnings: string[]
++}
++
++export function expandRequest(requests: ModuleRequest[]): string[] {
++  return requests.flatMap((r) => Array(r.quantity).fill(r.moduleId))
++}
++
++export function checkAdjacencyConstraints(moduleIds: string[]): string[] {
++  const warnings: string[] = []
++  const present = new Set(moduleIds)
++  for (const id of present) {
++    const spec = MODULE_CATALOG[id]
++    if (!spec?.constraints?.forbiddenAdjacentTo) continue
++    for (const forbiddenId of spec.constraints.forbiddenAdjacentTo) {
++      if (present.has(forbiddenId) && !present.has('hallway-connector')) {
++        warnings.push(`${spec.label} and ${MODULE_CATALOG[forbiddenId]?.label} both present without a hallway-connector.`)
++      }
++    }
++  }
++  return warnings
++}
++
++export function packModulesIntoRows(moduleIds: string[]): PlacedModule[] {
++  const totalArea = moduleIds.reduce((sum, id) => sum + MODULE_CATALOG[id].size.length * MODULE_CATALOG[id].size.width, 0)
++  const targetRowWidth = Math.sqrt(totalArea) * 1.3
++  const placed: PlacedModule[] = []
++  let cursorX = 0, cursorZ = 0, rowHeight = 0
++  moduleIds.forEach((moduleId, i) => {
++    const { length, width } = MODULE_CATALOG[moduleId].size
++    if (cursorX > 0 && cursorX + length > targetRowWidth) {
++      cursorX = 0; cursorZ += rowHeight; rowHeight = 0
++    }
++    placed.push({ moduleId, instanceId: `${moduleId}_${i}`, position: { x: cursorX, z: cursorZ }, rotation: 0 })
++    cursorX += length
++    rowHeight = Math.max(rowHeight, width)
++  })
++  return placed
++}
++
++export function generateArrangement(requests: ModuleRequest[]): Arrangement {
++  const moduleIds = expandRequest(requests)
++  const warnings = checkAdjacencyConstraints(moduleIds)
++  if (moduleIds.length > ASSEMBLY_LIMITS.maxModulesPerConfiguration) {
++    return {
++      modules: [],
++      valid: false,
++      warnings: [...warnings, `Configuration has ${moduleIds.length} modules, exceeding the placeholder limit of ${ASSEMBLY_LIMITS.maxModulesPerConfiguration}. Flagged for engineer review.`],
++    }
++  }
++  return { modules: packModulesIntoRows(moduleIds), valid: true, warnings }
++}
++
++export function rectangleCorners(origin: { x: number; z: number }, length: number, width: number, rotation: number): [number, number][] {
++  const dims = rotation === 90 || rotation === 270 ? [width, length] : [length, width]
++  const [l, w] = dims
++  return [[origin.x, origin.z], [origin.x + l, origin.z], [origin.x + l, origin.z + w], [origin.x, origin.z + w]]
++}
+diff --git a/apps/editor/lib/prefab/catalog.ts b/apps/editor/lib/prefab/catalog.ts
+new file mode 100644
+index 0000000..ac48d87
+--- /dev/null
++++ b/apps/editor/lib/prefab/catalog.ts
+@@ -0,0 +1,34 @@
++/**
++ * Factory module catalog — placeholder data pending factory confirmation.
++ * Swap the values here once real specs are available; nothing downstream
++ * needs to change.
++ */
++
++export type Edge = 'N' | 'E' | 'S' | 'W'
++
++export interface ModuleSpec {
++  id: string
++  label: string
++  category: 'bedroom' | 'bathroom' | 'kitchen' | 'living' | 'connector' | 'exterior' | 'utility' | 'storage'
++  size: { length: number; width: number }
++  connectableEdges: Edge[]
++  constraints?: {
++    forbiddenAdjacentTo?: string[]
++    exteriorWallOnly?: boolean
++    maxPerConfiguration?: number
++  }
++}
++
++export const MODULE_CATALOG: Record<string, ModuleSpec> = {
++  'bedroom-std': { id: 'bedroom-std', label: 'Standard bedroom', category: 'bedroom', size: { length: 6, width: 3 }, connectableEdges: ['N', 'E', 'S', 'W'] },
++  'bedroom-master': { id: 'bedroom-master', label: 'Master bedroom', category: 'bedroom', size: { length: 6, width: 3.6 }, connectableEdges: ['N', 'E', 'S'] },
++  'bathroom-std': { id: 'bathroom-std', label: 'Bathroom', category: 'bathroom', size: { length: 2.5, width: 2 }, connectableEdges: ['N'], constraints: { forbiddenAdjacentTo: ['kitchen-open'] } },
++  'kitchen-open': { id: 'kitchen-open', label: 'Open kitchen', category: 'kitchen', size: { length: 4, width: 3 }, connectableEdges: ['E', 'S'] },
++  'living-room': { id: 'living-room', label: 'Living room', category: 'living', size: { length: 6, width: 4 }, connectableEdges: ['N', 'E', 'S', 'W'] },
++  'hallway-connector': { id: 'hallway-connector', label: 'Hallway connector', category: 'connector', size: { length: 1.5, width: 3 }, connectableEdges: ['E', 'W'] },
++  'porch-covered': { id: 'porch-covered', label: 'Covered porch', category: 'exterior', size: { length: 3, width: 1.5 }, connectableEdges: ['N'], constraints: { exteriorWallOnly: true } },
++  'utility-mechanical': { id: 'utility-mechanical', label: 'Utility', category: 'utility', size: { length: 1.5, width: 1.5 }, connectableEdges: ['N'] },
++  'storage-loft': { id: 'storage-loft', label: 'Loft storage', category: 'storage', size: { length: 6, width: 3 }, connectableEdges: [], constraints: { maxPerConfiguration: 1 } },
++}
++
++export const ASSEMBLY_LIMITS = { maxModulesPerConfiguration: 6 }
+diff --git a/apps/editor/lib/prefab/stage1.ts b/apps/editor/lib/prefab/stage1.ts
+new file mode 100644
+index 0000000..6243633
+--- /dev/null
++++ b/apps/editor/lib/prefab/stage1.ts
+@@ -0,0 +1,68 @@
++import { MODULE_CATALOG } from './catalog'
++
++const VALID_MODULE_IDS = Object.keys(MODULE_CATALOG)
++
++const SYSTEM_PROMPT = `You convert a customer's plain-language house request into a structured list of prefab modules. Output ONLY a JSON object, nothing else — no prose, no markdown fences.
++
++Format: { "modules": [{ "moduleId": "...", "quantity": N }, ...], "unmapped": ["..."] }
++
++Valid moduleIds — never invent one that isn't here: ${VALID_MODULE_IDS.join(', ')}
++- bedroom-std: "bedroom"
++- bedroom-master: "master bedroom", "ensuite bedroom"
++- bathroom-std: "bathroom"
++- kitchen-open: "kitchen"
++- living-room: "living room"
++- hallway-connector: never requested directly, auto-added
++- porch-covered: "porch", "covered porch"
++- utility-mechanical: never requested directly, always auto-added once
++- storage-loft: "loft" — only if a pitched roof is mentioned
++
++Rules:
++1. Map each explicitly mentioned room to the closest moduleId. Repeated rooms become quantity.
++2. Always include exactly one utility-mechanical by default.
++3. Add one extra utility-mechanical per additional bathroom/kitchen ONLY if the customer explicitly asks for independent water supply.
++4. Add one hallway-connector whenever both a bathroom-type module and kitchen-open appear together.
++5. Do not omit modules to stay under any size limit.
++6. If part of the request doesn't map to any moduleId, leave it out of modules and list it in unmapped instead.`
++
++export interface Stage1Result {
++  modules: { moduleId: string; quantity: number }[]
++  unmapped: string[]
++}
++
++export async function parseCustomerRequest(customerMessage: string, apiKey: string): Promise<Stage1Result> {
++  const response = await fetch('https://api.anthropic.com/v1/messages', {
++    method: 'POST',
++    headers: {
++      'Content-Type': 'application/json',
++      'x-api-key': apiKey,
++      'anthropic-version': '2023-06-01',
++      'anthropic-dangerous-direct-browser-access': 'true',
++    },
++    body: JSON.stringify({
++      model: 'claude-sonnet-4-6',
++      max_tokens: 1000,
++      system: SYSTEM_PROMPT,
++      messages: [{ role: 'user', content: customerMessage }],
++    }),
++  })
++  if (!response.ok) {
++    throw new Error(`Claude API error ${response.status}: ${await response.text()}`)
++  }
++  const data = await response.json()
++  const rawText: string = data.content?.[0]?.text ?? ''
++  const fenced = rawText.match(/```(?:json)?\s*([\s\S]*?)```/)
++  const jsonText = fenced ? fenced[1].trim() : rawText.trim()
++
++  let parsed: any
++  try {
++    parsed = JSON.parse(jsonText)
++  } catch {
++    throw new Error(`Model did not return valid JSON: ${rawText}`)
++  }
++  if (!Array.isArray(parsed.modules)) throw new Error('Model output missing "modules" array.')
++  for (const m of parsed.modules) {
++    if (!VALID_MODULE_IDS.includes(m.moduleId)) throw new Error(`Model invented an invalid moduleId: ${m.moduleId}`)
++  }
++  return parsed as Stage1Result
++}
+diff --git a/packages/mcp/package.json b/packages/mcp/package.json
+index 8654943..754af78 100644
+--- a/packages/mcp/package.json
++++ b/packages/mcp/package.json
+@@ -60,6 +60,7 @@
+   "dependencies": {
+     "@modelcontextprotocol/sdk": "^1.29.0",
+     "@pascal-app/lingo": "^0.2.0",
++    "@supabase/supabase-js": "^2.45.0",
+     "zod": "^4.3.5"
+   },
+   "devDependencies": {
+diff --git a/packages/mcp/src/storage/index.ts b/packages/mcp/src/storage/index.ts
+index 36e4883..47cb198 100644
+--- a/packages/mcp/src/storage/index.ts
++++ b/packages/mcp/src/storage/index.ts
+@@ -2,16 +2,28 @@ import type { SceneStore } from './types'
+ 
+ export * from './slug'
+ export * from './sqlite-scene-store'
++export * from './supabase-scene-store'
+ export * from './types'
+ 
+ /**
+- * Factory for Pascal's local-first scene store.
++ * Factory for Pascal's scene store.
+  *
+- * The store is backed by the runtime's built-in SQLite driver. By default it
+- * writes to `~/.pascal/data/pascal.db`; set `PASCAL_DB_PATH` for an exact file
+- * path or `PASCAL_DATA_DIR` for a directory containing `pascal.db`.
++ * Picks a backend based on env, in this order:
++ * 1. If `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` are set, uses
++ *    `SupabaseSceneStore` — required for stateless hosts like Vercel,
++ *    where a local SQLite file would not persist between invocations.
++ * 2. Otherwise falls back to `SqliteSceneStore`, writing to
++ *    `~/.pascal/data/pascal.db` by default; set `PASCAL_DB_PATH` for an
++ *    exact file path or `PASCAL_DATA_DIR` for a directory containing
++ *    `pascal.db`. This path only works on hosts with a persistent local
++ *    filesystem (e.g. Railway, Render, your own machine) — not Vercel.
+  */
+ export async function createSceneStore(env?: NodeJS.ProcessEnv): Promise<SceneStore> {
++  const e = env ?? process.env
++  if (e.SUPABASE_URL && e.SUPABASE_SERVICE_ROLE_KEY) {
++    const mod = await import('./supabase-scene-store')
++    return new mod.SupabaseSceneStore({ env: e })
++  }
+   const mod = await import('./sqlite-scene-store')
+-  return new mod.SqliteSceneStore({ env })
++  return new mod.SqliteSceneStore({ env: e })
+ }
+diff --git a/packages/mcp/src/storage/supabase-scene-store.ts b/packages/mcp/src/storage/supabase-scene-store.ts
+new file mode 100644
+index 0000000..983b10d
+--- /dev/null
++++ b/packages/mcp/src/storage/supabase-scene-store.ts
+@@ -0,0 +1,523 @@
++import { createHash } from 'node:crypto'
++import type { SceneGraph } from '@pascal-app/core/clone-scene-graph'
++import { createClient, type SupabaseClient } from '@supabase/supabase-js'
++import { z } from 'zod'
++import { generateSlug, isValidSlug, sanitizeSlug } from './slug'
++import {
++  type ProjectCreateOptions,
++  type ProjectStatus,
++  type SceneEvent,
++  type SceneEventAppendOptions,
++  type SceneEventListOptions,
++  SceneInvalidError,
++  type SceneListOptions,
++  type SceneMeta,
++  type SceneMutateOptions,
++  SceneNotFoundError,
++  type SceneSaveOptions,
++  type SceneStore,
++  SceneTooLargeError,
++  SceneVersionConflictError,
++  type SceneWithGraph,
++} from './types'
++
++/**
++ * Postgres/Supabase-backed implementation of `SceneStore`.
++ *
++ * Same data model as `SqliteSceneStore` (see sqlite-scene-store.ts) but
++ * targets a shared Postgres database over the network instead of a local
++ * file — this is what makes it safe to run on stateless/serverless hosts
++ * like Vercel, where SqliteSceneStore's local file would not persist
++ * between invocations.
++ *
++ * Run `supabase-schema.sql` (in this same folder) against your Supabase
++ * project once before using this. Configure via env:
++ *   SUPABASE_URL
++ *   SUPABASE_SERVICE_ROLE_KEY   (server-side key — never expose to the browser)
++ *
++ * Concurrency note: unlike the SQLite version's `BEGIN IMMEDIATE`
++ * transaction, writes here use an optimistic compare-and-swap on `version`
++ * via the UPDATE's WHERE clause, followed by a separate revision-history
++ * insert. There's a small window between those two calls where they are
++ * not atomic as a pair — acceptable for this project's write volume, but
++ * worth knowing if this ever needs to handle heavy concurrent writes.
++ */
++
++const DEFAULT_MAX_SCENE_BYTES = 10 * 1024 * 1024
++const DEFAULT_LIST_LIMIT = 100
++const MAX_NAME_LENGTH = 200
++const MIN_NAME_LENGTH = 1
++
++export interface SupabaseSceneStoreOptions {
++  env?: NodeJS.ProcessEnv
++  maxSceneBytes?: number
++}
++
++interface SceneRow {
++  id: string
++  name: string
++  project_id: string | null
++  owner_id: string | null
++  thumbnail_url: string | null
++  version: number
++  created_at: string
++  updated_at: string
++  size_bytes: number
++  node_count: number
++  graph_json: unknown
++}
++
++interface SceneEventRow {
++  event_id: number
++  scene_id: string
++  version: number
++  kind: string
++  created_at: string
++  graph_json: unknown
++}
++
++interface ProjectPlaceholder {
++  id: string
++  name: string
++  ownerId: string | null
++  thumbnailUrl: string | null
++  createdAt: string
++  updatedAt: string
++}
++
++const GraphSchema = z.object({
++  nodes: z.record(z.string(), z.unknown()),
++  rootNodeIds: z.array(z.string()),
++  collections: z.record(z.string(), z.unknown()).optional(),
++})
++
++function resolveMaxSceneBytes(
++  env: NodeJS.ProcessEnv | undefined,
++  explicit: number | undefined,
++): number {
++  if (explicit !== undefined) {
++    if (!Number.isInteger(explicit) || explicit <= 0) {
++      throw new SceneInvalidError('maxSceneBytes must be a positive integer')
++    }
++    return explicit
++  }
++  const raw = env?.PASCAL_MAX_SCENE_BYTES
++  if (raw === undefined || raw === '') return DEFAULT_MAX_SCENE_BYTES
++  const parsed = Number.parseInt(raw, 10)
++  if (!Number.isInteger(parsed) || parsed <= 0) {
++    throw new SceneInvalidError('PASCAL_MAX_SCENE_BYTES must be a positive integer')
++  }
++  return parsed
++}
++
++function editorUrlForScene(id: string): string {
++  return `/editor/${id}`
++}
++
++function hashGraph(graph: unknown): string {
++  return createHash('sha256').update(JSON.stringify(graph)).digest('hex')
++}
++
++function rowToMeta(row: SceneRow): SceneMeta {
++  const editorUrl = editorUrlForScene(row.id)
++  return {
++    id: row.id,
++    name: row.name,
++    projectId: row.project_id,
++    ownerId: row.owner_id,
++    thumbnailUrl: row.thumbnail_url,
++    version: row.version,
++    createdAt: row.created_at,
++    updatedAt: row.updated_at,
++    sizeBytes: row.size_bytes,
++    nodeCount: row.node_count,
++    editorUrl,
++    url: editorUrl,
++    published: true,
++    graphHash: hashGraph(row.graph_json),
++  }
++}
++
++function rowToProjectStatus(row: SceneRow): ProjectStatus {
++  const editorUrl = editorUrlForScene(row.id)
++  return {
++    id: row.id,
++    projectId: row.project_id ?? row.id,
++    name: row.name,
++    editorUrl,
++    url: editorUrl,
++    ownerId: row.owner_id,
++    thumbnailUrl: row.thumbnail_url,
++    publishedVersion: row.version,
++    latestVersion: row.version,
++    draftVersion: null,
++    browserVisibleVersion: row.version,
++    version: row.version,
++    isEmpty: row.node_count === 0,
++    sizeBytes: row.size_bytes,
++    nodeCount: row.node_count,
++    graphHash: hashGraph(row.graph_json),
++    createdAt: row.created_at,
++    updatedAt: row.updated_at,
++  }
++}
++
++function placeholderToProjectStatus(project: ProjectPlaceholder): ProjectStatus {
++  const editorUrl = editorUrlForScene(project.id)
++  return {
++    id: project.id,
++    projectId: project.id,
++    name: project.name,
++    editorUrl,
++    url: editorUrl,
++    ownerId: project.ownerId,
++    thumbnailUrl: project.thumbnailUrl,
++    publishedVersion: null,
++    latestVersion: null,
++    draftVersion: null,
++    browserVisibleVersion: null,
++    version: 0,
++    isEmpty: true,
++    sizeBytes: 0,
++    nodeCount: 0,
++    graphHash: null,
++    createdAt: project.createdAt,
++    updatedAt: project.updatedAt,
++  }
++}
++
++function assertValidName(name: string): void {
++  if (typeof name !== 'string') {
++    throw new SceneInvalidError('Scene name must be a string')
++  }
++  const trimmed = name.trim()
++  if (trimmed.length < MIN_NAME_LENGTH || name.length > MAX_NAME_LENGTH) {
++    throw new SceneInvalidError(
++      `Scene name must be ${MIN_NAME_LENGTH}-${MAX_NAME_LENGTH} characters (got ${name.length})`,
++    )
++  }
++}
++
++function validateGraph(graph: unknown, context: string): SceneGraph {
++  const result = GraphSchema.safeParse(graph)
++  if (!result.success) {
++    throw new SceneInvalidError(`Scene graph for ${context} has invalid shape: ${result.error}`)
++  }
++  const parsed = result.data
++  for (const [nodeId, node] of Object.entries(parsed.nodes)) {
++    if (!node || typeof node !== 'object' || Array.isArray(node)) {
++      throw new SceneInvalidError(`Scene graph for ${context} has non-object node at "${nodeId}"`)
++    }
++    const typeField = (node as { type?: unknown }).type
++    if (typeof typeField !== 'string' || typeField.length === 0) {
++      throw new SceneInvalidError(
++        `Scene graph for ${context} has node "${nodeId}" missing a string "type"`,
++      )
++    }
++  }
++  return parsed as SceneGraph
++}
++
++export class SupabaseSceneStore implements SceneStore {
++  readonly backend = 'supabase' as const
++
++  private readonly client: SupabaseClient
++  private readonly maxSceneBytes: number
++  private readonly projectPlaceholders = new Map<string, ProjectPlaceholder>()
++
++  constructor(opts: SupabaseSceneStoreOptions = {}) {
++    const env = opts.env ?? process.env
++    const url = env.SUPABASE_URL
++    const key = env.SUPABASE_SERVICE_ROLE_KEY
++    if (!url || !key) {
++      throw new SceneInvalidError(
++        'SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set to use SupabaseSceneStore',
++      )
++    }
++    this.client = createClient(url, key, { auth: { persistSession: false } })
++    this.maxSceneBytes = resolveMaxSceneBytes(env, opts.maxSceneBytes)
++  }
++
++  async createProject(opts: ProjectCreateOptions): Promise<ProjectStatus> {
++    assertValidName(opts.name)
++    const id = opts.id ? sanitizeSlug(opts.id) : await this.generateUniqueId()
++    if (!isValidSlug(id)) {
++      throw new SceneInvalidError(`Invalid project id after sanitization: "${id}"`)
++    }
++    if (await this.getRow(id)) {
++      throw new SceneInvalidError(`Project with id "${id}" already exists`)
++    }
++    const now = new Date().toISOString()
++    const project: ProjectPlaceholder = {
++      id,
++      name: opts.name,
++      ownerId: opts.ownerId ?? null,
++      thumbnailUrl: null,
++      createdAt: now,
++      updatedAt: now,
++    }
++    this.projectPlaceholders.set(id, project)
++    return placeholderToProjectStatus(project)
++  }
++
++  async getProjectStatus(id: string): Promise<ProjectStatus | null> {
++    const safeId = sanitizeSlug(id)
++    const row = await this.getRow(safeId)
++    if (row) return rowToProjectStatus(row)
++    const placeholder = this.projectPlaceholders.get(safeId)
++    return placeholder ? placeholderToProjectStatus(placeholder) : null
++  }
++
++  async save(opts: SceneSaveOptions): Promise<SceneMeta> {
++    assertValidName(opts.name)
++    if (!opts.graph || typeof opts.graph !== 'object') {
++      throw new SceneInvalidError('graph is required')
++    }
++
++    const providedId = opts.id
++    const id = providedId ? sanitizeSlug(providedId) : await this.generateUniqueId()
++    if (!isValidSlug(id)) {
++      throw new SceneInvalidError(`Invalid scene id after sanitization: "${id}"`)
++    }
++
++    const existing = await this.getRow(id)
++    const placeholder = this.projectPlaceholders.get(id)
++
++    if (existing && providedId !== undefined && opts.expectedVersion === undefined) {
++      throw new SceneInvalidError(
++        `Scene with id "${id}" already exists. Pass a different id or provide expectedVersion to overwrite.`,
++      )
++    }
++    if (opts.expectedVersion !== undefined) {
++      const currentVersion = existing?.version ?? 0
++      if (currentVersion !== opts.expectedVersion) {
++        throw new SceneVersionConflictError(
++          `Scene "${id}" version mismatch: expected ${opts.expectedVersion}, got ${currentVersion}`,
++        )
++      }
++    }
++
++    const sizeBytes = Buffer.byteLength(JSON.stringify(opts.graph), 'utf8')
++    if (sizeBytes > this.maxSceneBytes) {
++      throw new SceneTooLargeError(
++        `Scene "${id}" is ${sizeBytes} bytes, exceeds cap of ${this.maxSceneBytes} bytes`,
++      )
++    }
++
++    const now = new Date().toISOString()
++    const version = (existing?.version ?? 0) + 1
++    const createdAt = existing?.created_at ?? placeholder?.createdAt ?? now
++    const nodeCount = Object.keys((opts.graph as SceneGraph).nodes ?? {}).length
++    const projectId = opts.projectId ?? existing?.project_id ?? (placeholder ? id : null)
++    const ownerId = opts.ownerId ?? existing?.owner_id ?? placeholder?.ownerId ?? null
++    const thumbnailUrl =
++      opts.thumbnailUrl ?? existing?.thumbnail_url ?? placeholder?.thumbnailUrl ?? null
++
++    if (existing) {
++      // Compare-and-swap: the WHERE clause only matches if version hasn't
++      // moved since we read it above, giving us the same protection a
++      // transaction+version-check gives the SQLite store.
++      const { data, error } = await this.client
++        .from('scenes')
++        .update({
++          name: opts.name,
++          project_id: projectId,
++          owner_id: ownerId,
++          thumbnail_url: thumbnailUrl,
++          version,
++          updated_at: now,
++          size_bytes: sizeBytes,
++          node_count: nodeCount,
++          graph_json: opts.graph,
++        })
++        .eq('id', id)
++        .eq('version', existing.version)
++        .select()
++        .maybeSingle()
++      if (error) throw new SceneInvalidError(`Supabase update failed: ${error.message}`)
++      if (!data) {
++        throw new SceneVersionConflictError(`Scene "${id}" was modified concurrently`)
++      }
++    } else {
++      const { error } = await this.client.from('scenes').insert({
++        id,
++        name: opts.name,
++        project_id: projectId,
++        owner_id: ownerId,
++        thumbnail_url: thumbnailUrl,
++        version,
++        created_at: createdAt,
++        updated_at: now,
++        size_bytes: sizeBytes,
++        node_count: nodeCount,
++        graph_json: opts.graph,
++      })
++      if (error) throw new SceneInvalidError(`Supabase insert failed: ${error.message}`)
++    }
++
++    await this.client.from('scene_revisions').insert({
++      scene_id: id,
++      version,
++      graph_json: opts.graph,
++      author_kind: 'mcp',
++      author_id: ownerId,
++      created_at: now,
++    })
++
++    this.projectPlaceholders.delete(id)
++
++    return {
++      id,
++      name: opts.name,
++      projectId,
++      ownerId,
++      thumbnailUrl,
++      version,
++      createdAt,
++      updatedAt: now,
++      sizeBytes,
++      nodeCount,
++      editorUrl: editorUrlForScene(id),
++      url: editorUrlForScene(id),
++      published: true,
++      graphHash: hashGraph(opts.graph),
++    }
++  }
++
++  async load(id: string): Promise<SceneWithGraph | null> {
++    const row = await this.getRow(sanitizeSlug(id))
++    if (!row) return null
++    return {
++      ...rowToMeta(row),
++      graph: validateGraph(row.graph_json, row.id),
++    }
++  }
++
++  async list(opts: SceneListOptions = {}): Promise<SceneMeta[]> {
++    let query = this.client.from('scenes').select('*')
++    if (opts.projectId !== undefined) query = query.eq('project_id', opts.projectId)
++    if (opts.ownerId !== undefined) query = query.eq('owner_id', opts.ownerId)
++    const limit = opts.limit ?? DEFAULT_LIST_LIMIT
++    query = query.order('updated_at', { ascending: false }).order('id', { ascending: true }).limit(limit)
++
++    const { data, error } = await query
++    if (error) throw new SceneInvalidError(`Supabase list failed: ${error.message}`)
++    return (data ?? []).map((row) => rowToMeta(row as SceneRow))
++  }
++
++  async delete(id: string, opts: SceneMutateOptions = {}): Promise<boolean> {
++    const safeId = sanitizeSlug(id)
++    const existing = await this.getRow(safeId)
++    if (!existing) return false
++    if (opts.expectedVersion !== undefined && existing.version !== opts.expectedVersion) {
++      throw new SceneVersionConflictError(
++        `Scene "${safeId}" version mismatch: expected ${opts.expectedVersion}, got ${existing.version}`,
++      )
++    }
++    const { error } = await this.client.from('scenes').delete().eq('id', safeId)
++    if (error) throw new SceneInvalidError(`Supabase delete failed: ${error.message}`)
++    return true
++  }
++
++  async rename(id: string, newName: string, opts: SceneMutateOptions = {}): Promise<SceneMeta> {
++    assertValidName(newName)
++    const safeId = sanitizeSlug(id)
++    const existing = await this.getRow(safeId)
++    if (!existing) {
++      throw new SceneNotFoundError(`Scene "${safeId}" not found`)
++    }
++    if (opts.expectedVersion !== undefined && existing.version !== opts.expectedVersion) {
++      throw new SceneVersionConflictError(
++        `Scene "${safeId}" version mismatch: expected ${opts.expectedVersion}, got ${existing.version}`,
++      )
++    }
++    const now = new Date().toISOString()
++    const nextVersion = existing.version + 1
++    const { error } = await this.client
++      .from('scenes')
++      .update({ name: newName, version: nextVersion, updated_at: now })
++      .eq('id', safeId)
++      .eq('version', existing.version)
++    if (error) throw new SceneInvalidError(`Supabase rename failed: ${error.message}`)
++
++    await this.client.from('scene_revisions').insert({
++      scene_id: safeId,
++      version: nextVersion,
++      graph_json: existing.graph_json,
++      author_kind: 'mcp',
++      author_id: existing.owner_id,
++      created_at: now,
++    })
++
++    return { ...rowToMeta(existing), name: newName, version: nextVersion, updatedAt: now }
++  }
++
++  async appendSceneEvent(opts: SceneEventAppendOptions): Promise<SceneEvent> {
++    const safeId = sanitizeSlug(opts.sceneId)
++    const existing = await this.getRow(safeId)
++    if (!existing) {
++      throw new SceneNotFoundError(`Scene "${safeId}" not found`)
++    }
++    const now = new Date().toISOString()
++    const { data, error } = await this.client
++      .from('scene_events')
++      .insert({
++        scene_id: safeId,
++        version: opts.version,
++        kind: opts.kind,
++        created_at: now,
++        graph_json: opts.graph,
++      })
++      .select()
++      .single()
++    if (error || !data) {
++      throw new SceneInvalidError(`Supabase event insert failed: ${error?.message}`)
++    }
++    return {
++      eventId: Number((data as SceneEventRow).event_id),
++      sceneId: safeId,
++      version: opts.version,
++      kind: opts.kind,
++      createdAt: now,
++      graph: opts.graph,
++    }
++  }
++
++  async listSceneEvents(sceneId: string, opts: SceneEventListOptions = {}): Promise<SceneEvent[]> {
++    const afterEventId = Math.max(0, opts.afterEventId ?? 0)
++    const limit = opts.limit ?? 100
++    const { data, error } = await this.client
++      .from('scene_events')
++      .select('*')
++      .eq('scene_id', sanitizeSlug(sceneId))
++      .gt('event_id', afterEventId)
++      .order('event_id', { ascending: true })
++      .limit(limit)
++    if (error) throw new SceneInvalidError(`Supabase event list failed: ${error.message}`)
++    return (data ?? []).map((row) => {
++      const r = row as SceneEventRow
++      return {
++        eventId: Number(r.event_id),
++        sceneId: r.scene_id,
++        version: Number(r.version),
++        kind: r.kind,
++        createdAt: r.created_at,
++        graph: validateGraph(r.graph_json, `${r.scene_id}@${r.version}`),
++      }
++    })
++  }
++
++  private async getRow(id: string): Promise<SceneRow | null> {
++    const { data, error } = await this.client.from('scenes').select('*').eq('id', id).maybeSingle()
++    if (error) throw new SceneInvalidError(`Supabase read failed: ${error.message}`)
++    return (data as SceneRow | null) ?? null
++  }
++
++  private async generateUniqueId(): Promise<string> {
++    for (let attempt = 0; attempt < 20; attempt++) {
++      const id = generateSlug()
++      if (!(await this.getRow(id))) return id
++    }
++    throw new SceneInvalidError('Failed to generate a unique scene id')
++  }
++}
+diff --git a/packages/mcp/src/storage/supabase-schema.sql b/packages/mcp/src/storage/supabase-schema.sql
+new file mode 100644
+index 0000000..ab9378a
+--- /dev/null
++++ b/packages/mcp/src/storage/supabase-schema.sql
+@@ -0,0 +1,46 @@
++-- Run this once in your Supabase project's SQL Editor before deploying.
++-- Mirrors the SQLite schema in sqlite-scene-store.ts, translated to Postgres.
++
++create table if not exists scenes (
++  id text primary key,
++  name text not null check (char_length(name) between 1 and 200),
++  project_id text,
++  owner_id text,
++  thumbnail_url text,
++  version integer not null check (version >= 1),
++  created_at timestamptz not null default now(),
++  updated_at timestamptz not null default now(),
++  size_bytes integer not null check (size_bytes >= 0),
++  node_count integer not null check (node_count >= 0),
++  graph_json jsonb not null
++);
++
++create index if not exists scenes_project_updated_idx on scenes (project_id, updated_at desc);
++create index if not exists scenes_owner_updated_idx on scenes (owner_id, updated_at desc);
++
++create table if not exists scene_revisions (
++  scene_id text not null references scenes (id) on delete cascade,
++  version integer not null check (version >= 1),
++  graph_json jsonb not null,
++  author_kind text not null,
++  author_id text,
++  created_at timestamptz not null default now(),
++  primary key (scene_id, version)
++);
++
++create table if not exists scene_events (
++  event_id bigserial primary key,
++  scene_id text not null references scenes (id) on delete cascade,
++  version integer not null check (version >= 1),
++  kind text not null,
++  created_at timestamptz not null default now(),
++  graph_json jsonb not null
++);
++
++create index if not exists scene_events_scene_event_idx on scene_events (scene_id, event_id);
++
++-- This app talks to Supabase using the service_role key from a trusted
++-- server context only (Vercel serverless functions), never from the
++-- browser — so Row Level Security can stay off for these tables. If you
++-- ever call Supabase directly from client-side code instead, enable RLS
++-- and add policies before doing that.
