@@ -59,9 +59,16 @@ async function buildAndSaveScene(
   }
 
   const finalState = useScene.getState()
+  const sceneApiToken = process.env.NEXT_PUBLIC_PASCAL_SCENE_API_TOKEN
+  const tokenDiagnostic = sceneApiToken
+    ? `token present, length ${sceneApiToken.length}`
+    : 'token MISSING from this build'
   const response = await fetch('/api/scenes', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(sceneApiToken ? { 'x-pascal-scene-token': sceneApiToken } : {}),
+    },
     body: JSON.stringify({
       name: sceneName,
       graph: { nodes: finalState.nodes, rootNodeIds: finalState.rootNodeIds },
@@ -69,7 +76,10 @@ async function buildAndSaveScene(
   })
 
   if (!response.ok) {
-    return { ok: false, error: `Failed to save scene: ${response.status} ${await response.text()}` }
+    return {
+      ok: false,
+      error: `Failed to save scene: ${response.status} ${await response.text()} [diagnostic: ${tokenDiagnostic}]`,
+    }
   }
 
   const meta = await response.json()
