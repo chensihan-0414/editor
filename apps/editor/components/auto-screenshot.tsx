@@ -25,15 +25,22 @@ export function AutoScreenshot() {
       if (cancelled) return
       const canvas = document.querySelector('canvas')
       if (!canvas) return
-      try {
-        setImageUrl(canvas.toDataURL('image/png'))
-      } catch {
-        // Canvas may be tainted or not yet ready — leave imageUrl unset,
-        // the user can still use the editor's own screenshot command.
-      }
-      // Strip the query param so refreshing doesn't re-trigger this.
-      router.replace(window.location.pathname)
-    }, 3000)
+      // Align the capture with an actual paint (two frames, to be safe)
+      // instead of grabbing whatever happens to be in the buffer at an
+      // arbitrary moment — this is what was producing blank captures.
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          if (cancelled) return
+          try {
+            setImageUrl(canvas.toDataURL('image/png'))
+          } catch {
+            // Canvas may be tainted or not yet ready — leave imageUrl unset,
+            // the user can still use the editor's own screenshot command.
+          }
+          router.replace(window.location.pathname)
+        })
+      })
+    }, 5000)
 
     return () => {
       cancelled = true
