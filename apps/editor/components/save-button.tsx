@@ -28,9 +28,13 @@ export function CreateSceneButton({ label = 'Create new scene' }: { label?: stri
     setIsCreating(true)
     setError(null)
     try {
+      const sceneApiToken = process.env.NEXT_PUBLIC_PASCAL_SCENE_API_TOKEN
       const response = await fetch('/api/scenes', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(sceneApiToken ? { 'x-pascal-scene-token': sceneApiToken } : {}),
+        },
         body: JSON.stringify({ name: 'Untitled scene', graph: EMPTY_GRAPH }),
       })
       if (!response.ok) {
@@ -80,11 +84,13 @@ export function SaveButton({ sceneId, name, version, getGraph }: SaveButtonProps
     setIsSaving(true)
     setStatus(null)
     try {
+      const sceneApiToken = process.env.NEXT_PUBLIC_PASCAL_SCENE_API_TOKEN
       const response = await fetch(`/api/scenes/${sceneId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           'If-Match': String(version),
+          ...(sceneApiToken ? { 'x-pascal-scene-token': sceneApiToken } : {}),
         },
         body: JSON.stringify({ name, graph }),
       })
@@ -115,9 +121,13 @@ export function SaveButton({ sceneId, name, version, getGraph }: SaveButtonProps
     setIsSaving(true)
     setStatus(null)
     try {
+      const sceneApiToken = process.env.NEXT_PUBLIC_PASCAL_SCENE_API_TOKEN
       const response = await fetch('/api/scenes', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(sceneApiToken ? { 'x-pascal-scene-token': sceneApiToken } : {}),
+        },
         body: JSON.stringify({ name: newName, graph }),
       })
       if (!response.ok) {
