@@ -115,11 +115,13 @@ export function SceneLoader({ initialScene, meta }: SceneLoaderProps) {
       if (isRecentRemoteApply) return
 
       try {
+        const sceneApiToken = process.env.NEXT_PUBLIC_PASCAL_SCENE_API_TOKEN
         const response = await fetch(`/api/scenes/${meta.id}`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
             'If-Match': String(versionRef.current),
+            ...(sceneApiToken ? { 'x-pascal-scene-token': sceneApiToken } : {}),
           },
           body: JSON.stringify({ name: meta.name, graph }),
           // `keepalive` lets the request outlive a page unload (the autosave
