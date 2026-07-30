@@ -24,8 +24,10 @@ async function resolveBaseUrl(): Promise<string> {
 
 async function fetchScene(id: string): Promise<SceneWithGraph | null> {
   const base = await resolveBaseUrl()
+  const sceneApiToken = process.env.PASCAL_SCENE_API_TOKEN
   const response = await fetch(`${base}/api/scenes/${encodeURIComponent(id)}`, {
     cache: 'no-store',
+    headers: sceneApiToken ? { 'x-pascal-scene-token': sceneApiToken } : undefined,
   })
   if (response.status === 404) {
     return null
