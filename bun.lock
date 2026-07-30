@@ -98,7 +98,7 @@
     },
     "packages/core": {
       "name": "@pascal-app/core",
-      "version": "0.9.2",
+      "version": "1.0.0-beta.1",
       "dependencies": {
         "dedent": "^1.7.1",
         "idb-keyval": "^6.2.2",
@@ -124,7 +124,7 @@
     },
     "packages/editor": {
       "name": "@pascal-app/editor",
-      "version": "0.9.2",
+      "version": "1.0.0-beta.1",
       "dependencies": {
         "@dnd-kit/core": "^6.3.1",
         "@dnd-kit/sortable": "^10.0.0",
@@ -161,8 +161,8 @@
         "zustand": "^5.0.11",
       },
       "devDependencies": {
-        "@pascal-app/core": "^0.9.2",
-        "@pascal-app/viewer": "^0.9.2",
+        "@pascal-app/core": "^1.0.0-beta.1",
+        "@pascal-app/viewer": "^1.0.0-beta.1",
         "@pascal/typescript-config": "*",
         "@types/blob-stream": "^0.1.33",
         "@types/bun": "^1.3.0",
@@ -174,8 +174,8 @@
         "typescript": "6.0.3",
       },
       "peerDependencies": {
-        "@pascal-app/core": "^0.9.2",
-        "@pascal-app/viewer": "^0.9.2",
+        "@pascal-app/core": "^1.0.0-beta.1",
+        "@pascal-app/viewer": "^1.0.0-beta.1",
         "@react-three/drei": "^10",
         "@react-three/fiber": "^9",
         "next": ">=15",
@@ -203,7 +203,7 @@
     },
     "packages/ifc-converter": {
       "name": "@pascal-app/ifc-converter",
-      "version": "0.1.2",
+      "version": "1.0.0-beta.1",
       "dependencies": {
         "@pascal-app/core": "*",
         "nanoid": "^5.1.6",
@@ -217,32 +217,33 @@
     },
     "packages/mcp": {
       "name": "@pascal-app/mcp",
-      "version": "0.3.2",
+      "version": "1.0.0-beta.1",
       "bin": {
         "pascal-mcp": "./dist/bin/pascal-mcp.js",
       },
       "dependencies": {
         "@modelcontextprotocol/sdk": "^1.29.0",
         "@pascal-app/lingo": "^0.2.0",
+        "@supabase/supabase-js": "^2.45.0",
         "zod": "^4.3.5",
       },
       "devDependencies": {
-        "@pascal-app/core": "^0.9.2",
+        "@pascal-app/core": "^1.0.0-beta.1",
         "@pascal/typescript-config": "*",
         "@types/node": "^22.19.20",
         "typescript": "6.0.3",
       },
       "peerDependencies": {
-        "@pascal-app/core": "^0.9.2",
+        "@pascal-app/core": "^1.0.0-beta.1",
       },
     },
     "packages/nodes": {
       "name": "@pascal-app/nodes",
-      "version": "0.1.1",
+      "version": "1.0.0-beta.1",
       "devDependencies": {
-        "@pascal-app/core": "^0.9.2",
-        "@pascal-app/editor": "^0.9.2",
-        "@pascal-app/viewer": "^0.9.2",
+        "@pascal-app/core": "^1.0.0-beta.1",
+        "@pascal-app/editor": "^1.0.0-beta.1",
+        "@pascal-app/viewer": "^1.0.0-beta.1",
         "@pascal/typescript-config": "*",
         "@types/bun": "^1.3.0",
         "@types/node": "^22.19.12",
@@ -251,9 +252,9 @@
         "typescript": "6.0.3",
       },
       "peerDependencies": {
-        "@pascal-app/core": "^0.9.2",
-        "@pascal-app/editor": "^0.9.2",
-        "@pascal-app/viewer": "^0.9.2",
+        "@pascal-app/core": "^1.0.0-beta.1",
+        "@pascal-app/editor": "^1.0.0-beta.1",
+        "@pascal-app/viewer": "^1.0.0-beta.1",
         "@react-three/drei": "^10",
         "@react-three/fiber": "^9",
         "lucide-react": "^1",
@@ -285,7 +286,7 @@
     },
     "packages/viewer": {
       "name": "@pascal-app/viewer",
-      "version": "0.9.2",
+      "version": "1.0.0-beta.1",
       "dependencies": {
         "three-bvh-csg": "^0.0.18",
         "three-mesh-bvh": "^0.9.8",
@@ -299,7 +300,7 @@
         "typescript": "6.0.3",
       },
       "peerDependencies": {
-        "@pascal-app/core": "^0.9.2",
+        "@pascal-app/core": "^1.0.0-beta.1",
         "@react-three/drei": "^10",
         "@react-three/fiber": "^9",
         "react": "^18 || ^19",
@@ -811,6 +812,20 @@
 
     "@standard-schema/spec": ["@standard-schema/spec@1.1.0", "", {}, "sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w=="],
 
+    "@supabase/auth-js": ["@supabase/auth-js@2.111.0", "", { "dependencies": { "tslib": "2.8.1" } }, "sha512-hbRLgyQZEX0SDyF4LYXpv94qOIQyFATfpT5SIs2V0SisHnisVRkYgiPQWzv80l4S2mO3qof78rmoH9j5zoFsYQ=="],
+
+    "@supabase/functions-js": ["@supabase/functions-js@2.111.0", "", { "dependencies": { "tslib": "2.8.1" } }, "sha512-RW/OCsd6MO592zU8ifzP8/f8XzxxIdpb+Up5XaOtE26Fw+3zTp475WX7+GuuktiD1WF8pFUDe6khUPbMp77RCw=="],
+
+    "@supabase/phoenix": ["@supabase/phoenix@0.4.5", "", {}, "sha512-aAn9H9ovVyeApKy11OWOrrOGq8DV68yWeH4ud2lN9fzn4aO8Zb5GLL9m1pUg9nLqIcT+ZDfAcsZe0E/nqdv2lw=="],
+
+    "@supabase/postgrest-js": ["@supabase/postgrest-js@2.111.0", "", { "dependencies": { "tslib": "2.8.1" } }, "sha512-pcqeDsnWP0lx9GawduYxNZJHeuTm53O7L0SC8RF8tniV3GWIPY6me6OTdnwzdwNUmNy1dzUVtSyIfE6+OflzPQ=="],
+
+    "@supabase/realtime-js": ["@supabase/realtime-js@2.111.0", "", { "dependencies": { "@supabase/phoenix": "0.4.5", "tslib": "2.8.1" } }, "sha512-6oRf/vZyRwg8f8GbFSJkrD2w4HAu/yTvyMViHXHS+H5hNJzdXCrUR7cP5oW7daT3YlRnzRPY9LcGSJKZAmfMSg=="],
+
+    "@supabase/storage-js": ["@supabase/storage-js@2.111.0", "", { "dependencies": { "iceberg-js": "^0.8.1", "tslib": "2.8.1" } }, "sha512-UEViNmTzVOxE8dqUA81wls+n9xgmlvSFfhfwo6QxrO4kQOytCYyw3ciYFoi4XoD4Jl95NJ3jnndHN5iIudWzqw=="],
+
+    "@supabase/supabase-js": ["@supabase/supabase-js@2.111.0", "", { "dependencies": { "@supabase/auth-js": "2.111.0", "@supabase/functions-js": "2.111.0", "@supabase/postgrest-js": "2.111.0", "@supabase/realtime-js": "2.111.0", "@supabase/storage-js": "2.111.0" } }, "sha512-9q0/AULthQnWeiDh1vGyjoJZbSY04bu6qHcWit70pqEYn5Kv/dkCPY62Ja1123jEnJbB9Vd2pjY7Kvk/lK3peA=="],
+
     "@swc/helpers": ["@swc/helpers@0.5.15", "", { "dependencies": { "tslib": "^2.8.0" } }, "sha512-JQ5TuMi45Owi4/BIMAJBoSQoOJu12oOk/gADqlcUL9JEdHB8vyjUSsxqeNXnmXHjYKMi2WcYtezGEEhqUI/E2g=="],
 
     "@tailwindcss/node": ["@tailwindcss/node@4.3.0", "", { "dependencies": { "@jridgewell/remapping": "^2.3.5", "enhanced-resolve": "^5.21.0", "jiti": "^2.6.1", "lightningcss": "1.32.0", "magic-string": "^0.30.21", "source-map-js": "^1.2.1", "tailwindcss": "4.3.0" } }, "sha512-aFb4gUhFOgdh9AXo4IzBEOzBkkAxm9VigwDJnMIYv3lcfXCJVesNfbEaBl4BNgVRyid92AmdviqwBUBRKSeY3g=="],
@@ -1306,6 +1321,8 @@
     "howler": ["howler@2.2.4", "", {}, "sha512-iARIBPgcQrwtEr+tALF+rapJ8qSc+Set2GJQl7xT1MQzWaVkFebdJhR3alVlSiUf5U7nAANKuj3aWpwerocD5w=="],
 
     "http-errors": ["http-errors@2.0.1", "", { "dependencies": { "depd": "~2.0.0", "inherits": "~2.0.4", "setprototypeof": "~1.2.0", "statuses": "~2.0.2", "toidentifier": "~1.0.1" } }, "sha512-4FbRdAX+bSdmo4AUFuS0WNiPz8NgFt+r8ThgNWmlrjQjt1Q7ZR9+zTlce2859x4KSXrwIsaeTqDoKQmtP8pLmQ=="],
+
+    "iceberg-js": ["iceberg-js@0.8.1", "", {}, "sha512-1dhVQZXhcHje7798IVM+xoo/1ZdVfzOMIc8/rgVSijRK38EDqOJoGula9N/8ZI5RD8QTxNQtK/Gozpr+qUqRRA=="],
 
     "iconv-lite": ["iconv-lite@0.7.2", "", { "dependencies": { "safer-buffer": ">= 2.1.2 < 3.0.0" } }, "sha512-im9DjEDQ55s9fL4EYzOAv0yMqmMBSZp6G0VvFyTMPKWxiSBHUj9NW/qqLmXUwXrrM7AvqSlTCfvqRb0cM8yYqw=="],
 
