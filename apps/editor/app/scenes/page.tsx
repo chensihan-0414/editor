@@ -20,8 +20,10 @@ async function resolveBaseUrl(): Promise<string> {
 
 async function fetchScenes(): Promise<SceneMeta[]> {
   const base = await resolveBaseUrl()
+  const sceneApiToken = process.env.PASCAL_SCENE_API_TOKEN
   const response = await fetch(`${base}/api/scenes?limit=50`, {
     cache: 'no-store',
+    headers: sceneApiToken ? { 'x-pascal-scene-token': sceneApiToken } : undefined,
   })
   if (!response.ok) {
     return []
