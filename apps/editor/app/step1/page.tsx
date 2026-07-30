@@ -2,17 +2,127 @@
 
 import useScene from '@pascal-app/core/store'
 import { WallNode, ZoneNode, SiteNode, BuildingNode, LevelNode } from '@pascal-app/core/schema'
-import { useRouter } from 'next/navigation'
-import { useState } from 'react'
-import { generateArrangement } from '@/lib/prefab/assembly'
-import { rectangleCorners } from '@/lib/prefab/assembly'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { Suspense, useEffect, useState } from 'react'
+import { generateArrangement, rectangleCorners } from '@/lib/prefab/assembly'
 import { MODULE_CATALOG } from '@/lib/prefab/catalog'
 import { parseCustomerRequest } from '@/lib/prefab/stage1'
 
 const WALL_THICKNESS = 0.15
 const WALL_HEIGHT = 2.7
 
-export default function Step1Page() {
+interface IncomingModuleRequest {
+  market?: string
+  modules: { moduleId: string; quantity: number }[]
+}
+
+async function buildAndSaveScene(
+  modules: { moduleId: string; quantity: number }[],
+  sceneName: string,
+): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
+  const arrangement = generateArrangement(modules)
+  if (!arrangement.valid) {
+    return { ok: false, error: `Stage 2 rejected this configuration:\n${arrangement.warnings.join('\n')}` }
+  }
+
+  const scene = useScene.getState()
+  scene.clearScene()
+
+  const site = SiteNode.parse({ name: sceneName })
+  scene.createNode(site)
+  const building = BuildingNode.parse({ name: 'Main house' })
+  scene.createNode(building, site.id)
+  const level = LevelNode.parse({ name: 'Ground floor', level: 0 })
+  scene.createNode(level, building.id)
+
+  for (const placed of arrangement.modules) {
+    const spec = MODULE_CATALOG[placed.moduleId]
+    const corners = rectangleCorners(placed.position, spec.size.length, spec.size.width, placed.rotation)
+    const wallIds: string[] = []
+    for (let i = 0; i < corners.length; i++) {
+      const wall = WallNode.parse({
+        start: corners[i],
+        end: corners[(i + 1) % corners.length],
+        thickness: WALL_THICKNESS,
+        height: WALL_HEIGHT,
+      })
+      scene.createNode(wall, level.id)
+      wallIds.push(wall.id)
+    }
+    const zone = ZoneNode.parse({
+      name: spec.label,
+      polygon: corners,
+      boundaryWallIds: wallIds,
+      metadata: { moduleId: placed.moduleId },
+    })
+    scene.createNode(zone, level.id)
+  }
+
+  const finalState = useScene.getState()
+  const response = await fetch('/api/scenes', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      name: sceneName,
+      graph: { nodes: finalState.nodes, rootNodeIds: finalState.rootNodeIds },
+    }),
+  })
+
+  if (!response.ok) {
+    return { ok: false, error: `Failed to save scene: ${response.status} ${await response.text()}` }
+  }
+
+  const meta = await response.json()
+  return { ok: true, id: meta.id }
+}
+
+function AutoBuildFromQuery({ dataParam }: { dataParam: string }) {
+  const router = useRouter()
+  const [status, setStatus] = useState('Reading your request...')
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    async function run() {
+      let parsed: IncomingModuleRequest
+      try {
+        parsed = JSON.parse(decodeURIComponent(dataParam))
+      } catch {
+        setError('Could not read the incoming request data.')
+        return
+      }
+      if (!Array.isArray(parsed.modules)) {
+        setError('Incoming data is missing a "modules" list.')
+        return
+      }
+
+      setStatus('Building your house...')
+      const sceneName = parsed.market ? `Customer request — ${parsed.market}` : 'Customer request'
+      const result = await buildAndSaveScene(parsed.modules, sceneName)
+      if (cancelled) return
+
+      if (!result.ok) {
+        setError(result.error)
+        return
+      }
+      setStatus('Done — opening your house...')
+      router.push(`/scene/${result.id}?autoScreenshot=1`)
+    }
+    run()
+    return () => {
+      cancelled = true
+    }
+  }, [dataParam, router])
+
+  return (
+    <div className="mx-auto flex min-h-screen max-w-md flex-col items-center justify-center gap-3 p-6 text-center">
+      <p className="font-medium text-lg">{status}</p>
+      {error && <pre className="whitespace-pre-wrap text-left text-red-600 text-sm">{error}</pre>}
+    </div>
+  )
+}
+
+function ManualStep1Form() {
   const router = useRouter()
   const [apiKey, setApiKey] = useState('')
   const [customerRequest, setCustomerRequest] = useState('')
@@ -40,71 +150,14 @@ export default function Step1Page() {
       const unmappedNote = stage1.unmapped.length ? ` (unmapped: ${stage1.unmapped.join(', ')})` : ''
       setStatus({ text: `Stage 1 done: ${stage1.modules.length} module types found.${unmappedNote}`, kind: 'idle' })
 
-      const arrangement = generateArrangement(stage1.modules)
-      if (!arrangement.valid) {
-        setStatus({ text: `Stage 2 rejected this configuration:\n${arrangement.warnings.join('\n')}`, kind: 'warn' })
+      const result = await buildAndSaveScene(stage1.modules, customerRequest.slice(0, 100))
+      if (!result.ok) {
+        setStatus({ text: result.error, kind: 'warn' })
         setBusy(false)
         return
       }
-
-      setStatus({ text: 'Stage 2 done. Building the scene graph...', kind: 'idle' })
-
-      // Reset any local editor state before building a fresh scene, so we
-      // don't accidentally merge with whatever was in this browser's
-      // IndexedDB-persisted store from a previous session.
-      const scene = useScene.getState()
-      scene.clearScene()
-
-      const site = SiteNode.parse({ name: `Customer request — ${new Date().toLocaleDateString()}` })
-      scene.createNode(site)
-      const building = BuildingNode.parse({ name: 'Main house' })
-      scene.createNode(building, site.id)
-      const level = LevelNode.parse({ name: 'Ground floor', level: 0 })
-      scene.createNode(level, building.id)
-
-      for (const placed of arrangement.modules) {
-        const spec = MODULE_CATALOG[placed.moduleId]
-        const corners = rectangleCorners(placed.position, spec.size.length, spec.size.width, placed.rotation)
-        const wallIds: string[] = []
-        for (let i = 0; i < corners.length; i++) {
-          const wall = WallNode.parse({
-            start: corners[i],
-            end: corners[(i + 1) % corners.length],
-            thickness: WALL_THICKNESS,
-            height: WALL_HEIGHT,
-          })
-          scene.createNode(wall, level.id)
-          wallIds.push(wall.id)
-        }
-        const zone = ZoneNode.parse({
-          name: spec.label,
-          polygon: corners,
-          boundaryWallIds: wallIds,
-          metadata: { moduleId: placed.moduleId },
-        })
-        scene.createNode(zone, level.id)
-      }
-
-      const finalState = useScene.getState()
-      setStatus({ text: 'Saving scene...', kind: 'idle' })
-
-      const response = await fetch('/api/scenes', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: customerRequest.slice(0, 100),
-          graph: { nodes: finalState.nodes, rootNodeIds: finalState.rootNodeIds },
-        }),
-      })
-
-      if (!response.ok) {
-        const body = await response.text()
-        throw new Error(`Failed to save scene: ${response.status} ${body}`)
-      }
-
-      const meta = await response.json()
       setStatus({ text: 'Done — opening the scene...', kind: 'ok' })
-      router.push(`/scene/${meta.id}?autoScreenshot=1`)
+      router.push(`/scene/${result.id}?autoScreenshot=1`)
     } catch (err) {
       setStatus({ text: `Error: ${err instanceof Error ? err.message : String(err)}`, kind: 'error' })
       setBusy(false)
@@ -116,8 +169,8 @@ export default function Step1Page() {
       <div>
         <h1 className="font-semibold text-xl">Step 1 — customer request</h1>
         <p className="mt-1 text-muted-foreground text-sm">
-          Your API key stays in this browser tab and is sent directly to Anthropic — it never
-          touches our servers except when we save the finished scene graph.
+          No structured request came in from a link, so describe it in your own words instead.
+          Your API key stays in this browser tab.
         </p>
       </div>
 
@@ -162,5 +215,19 @@ export default function Step1Page() {
         </pre>
       )}
     </div>
+  )
+}
+
+function Step1Inner() {
+  const searchParams = useSearchParams()
+  const dataParam = searchParams.get('data')
+  return dataParam ? <AutoBuildFromQuery dataParam={dataParam} /> : <ManualStep1Form />
+}
+
+export default function Step1Page() {
+  return (
+    <Suspense fallback={null}>
+      <Step1Inner />
+    </Suspense>
   )
 }
