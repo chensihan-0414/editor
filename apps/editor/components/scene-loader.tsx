@@ -9,10 +9,11 @@ import {
   type SceneGraph,
   type SidebarTab,
 } from '@pascal-app/editor'
+import { emitter } from '@pascal-app/core'
 import { Hammer, Layers } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { AutoScreenshot } from './auto-screenshot'
 import { BuildTab } from './build-tab'
@@ -95,6 +96,9 @@ function sceneGraphSignature(graph: SceneGraphWithCollections): string {
 
 export function SceneLoader({ initialScene, meta }: SceneLoaderProps) {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const isAutoScreenshotRequest = searchParams.get('autoScreenshot') === '1'
+  const [autoShotUrl, setAutoShotUrl] = useState<string | null>(null)
   const versionRef = useRef(meta.version)
   const lastRemoteGraphJsonRef = useRef<string | null>(null)
   const suppressRemoteSaveUntilRef = useRef(0)
@@ -181,8 +185,26 @@ export function SceneLoader({ initialScene, meta }: SceneLoaderProps) {
     return () => source.close()
   }, [meta.id])
 
+  // Step 3: trigger Pascal's own thumbnail/snapshot pipeline (the same one
+  // used for project thumbnails) instead of reading the visible <canvas>
+  // directly — WebGPU canvases here don't reliably keep a readable buffer
+  // for external code, which is what made the old canvas.toDataURL()
+  // approach capture blank frames regardless of how long it waited.
+  useEffect(() => {
+    if (!isAutoScreenshotRequest) return
+    const timer = setTimeout(() => {
+      emitter.emit('camera-controls:generate-thumbnail', { captureMode: 'viewport' })
+    }, 2500)
+    return () => clearTimeout(timer)
+  }, [isAutoScreenshotRequest])
+
   const handleThumb = useCallback(
-    async (_blob: Blob) => {
+    async (blob: Blob) => {
+      if (isAutoScreenshotRequest) {
+        setAutoShotUrl(URL.createObjectURL(blob))
+        router.replace(window.location.pathname)
+        return
+      }
       // TODO(phase7): upload thumbnail via POST /api/scenes/[id]/thumbnail.
       // Stub endpoint is not yet implemented in v0.1 — skip upload for now.
       await fetch(`/api/scenes/${meta.id}/thumbnail`, {
@@ -192,14 +214,15 @@ export function SceneLoader({ initialScene, meta }: SceneLoaderProps) {
         // Swallow errors silently; thumbnail upload is best-effort.
       })
     },
-    [meta.id],
+    [meta.id, isAutoScreenshotRequest, router],
   )
 
   return (
     <div className="relative h-screen w-screen">
-      {/* Step 3: captures the canvas as a PNG when arriving from Step 1
-          with ?autoScreenshot=1 — no-ops otherwise. */}
-      <AutoScreenshot />
+      {/* Step 3: shows the captured PNG when arriving from Step 1 with
+          ?autoScreenshot=1 — capture itself is triggered by the effect
+          above and received via handleThumb; this just displays it. */}
+      <AutoScreenshot imageUrl={autoShotUrl} onClose={() => setAutoShotUrl(null)} />
       {conflict && (
         <div className="pointer-events-auto absolute top-4 left-1/2 z-50 w-full max-w-md -translate-x-1/2 rounded-lg border border-border bg-background p-4 shadow-xl">
           <h2 className="font-semibold text-sm">Another session saved first — refresh?</h2>
