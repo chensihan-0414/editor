@@ -1,24 +1,49 @@
 'use client'
 
 import useScene from '@pascal-app/core/store'
-import { WallNode, ZoneNode, SiteNode, BuildingNode, LevelNode } from '@pascal-app/core/schema'
+import { WallNode, ZoneNode, SiteNode, BuildingNode, LevelNode, ItemNode } from '@pascal-app/core/schema'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Suspense, useEffect, useState } from 'react'
 import { generateArrangement, rectangleCorners } from '@/lib/prefab/assembly'
 import { MODULE_CATALOG } from '@/lib/prefab/catalog'
+import { furnishRoomPlacements, type RoomType } from '@/lib/prefab/furnishing'
 import { parseCustomerRequest } from '@/lib/prefab/stage1'
 
 const WALL_THICKNESS = 0.15
 const WALL_HEIGHT = 2.7
 
+// One style preset, applied to every generated wall for now — a warm,
+// light plaster finish (2026 trend research: warm whites reading as more
+// "grounded" than cold/sterile grays). Swapping this for a per-market or
+// per-style constant is the natural next step once this one is validated.
+const MODERN_MINIMALIST_WALL_MATERIAL = {
+  preset: 'plaster' as const,
+  properties: { color: '#f5f1ea', roughness: 0.65, metalness: 0, opacity: 1, transparent: false, side: 'front' as const },
+}
+
+// Which of our module catalog IDs get auto-furnished, and with which of
+// Pascal's built-in room types. Modules not listed here (porch, utility)
+// are left as bare structure — there's no matching furniture set for them.
+const MODULE_ROOM_TYPE: Record<string, RoomType> = {
+  'bedroom-std': 'bedroom',
+  'bedroom-master': 'bedroom',
+  'bathroom-std': 'bathroom',
+  'kitchen-open': 'kitchen',
+  'living-room': 'living',
+  'hallway-connector': 'hallway',
+  'storage-loft': 'storage',
+}
+
 interface IncomingModuleRequest {
   market?: string
   modules: { moduleId: string; quantity: number }[]
+  furnish?: boolean
 }
 
 async function buildAndSaveScene(
   modules: { moduleId: string; quantity: number }[],
   sceneName: string,
+  furnish = true,
 ): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
   const arrangement = generateArrangement(modules)
   if (!arrangement.valid) {
@@ -45,6 +70,7 @@ async function buildAndSaveScene(
         end: corners[(i + 1) % corners.length],
         thickness: WALL_THICKNESS,
         height: WALL_HEIGHT,
+        interiorMaterial: MODERN_MINIMALIST_WALL_MATERIAL,
       })
       scene.createNode(wall, level.id)
       wallIds.push(wall.id)
@@ -56,6 +82,21 @@ async function buildAndSaveScene(
       metadata: { moduleId: placed.moduleId },
     })
     scene.createNode(zone, level.id)
+
+    const roomType = MODULE_ROOM_TYPE[placed.moduleId]
+    if (roomType && furnish) {
+      const furniture = furnishRoomPlacements(roomType, corners)
+      for (const piece of furniture) {
+        const item = ItemNode.parse({
+          name: piece.name,
+          position: piece.position,
+          rotation: piece.rotation,
+          asset: piece.asset,
+          metadata: { moduleId: placed.moduleId, autoFurnished: true },
+        })
+        scene.createNode(item, level.id)
+      }
+    }
   }
 
   const finalState = useScene.getState()
@@ -108,7 +149,7 @@ function AutoBuildFromQuery({ dataParam }: { dataParam: string }) {
 
       setStatus('Building your house...')
       const sceneName = parsed.market ? `Customer request — ${parsed.market}` : 'Customer request'
-      const result = await buildAndSaveScene(parsed.modules, sceneName)
+      const result = await buildAndSaveScene(parsed.modules, sceneName, parsed.furnish ?? true)
       if (cancelled) return
 
       if (!result.ok) {
