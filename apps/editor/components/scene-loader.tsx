@@ -6,11 +6,12 @@
 import {
   applySceneGraphToEditor,
   Editor,
+  ItemsPanel,
   type SceneGraph,
   type SidebarTab,
 } from '@pascal-app/editor'
 import { emitter } from '@pascal-app/core'
-import { Hammer, Layers } from 'lucide-react'
+import { Hammer, Layers, Package } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -18,6 +19,13 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { AutoScreenshot } from './auto-screenshot'
 import { BuildTab } from './build-tab'
 import { CommunityViewerToolbarLeft, CommunityViewerToolbarRight } from './viewer-toolbar'
+
+// Mirrors the open-source editor's item panel (see app/page.tsx): no
+// uploaded items in this deployment, so hide the Library/Community/Mine
+// source chips and tag filters.
+function SceneItemsPanel() {
+  return <ItemsPanel showSourceFilter={false} showTagFilters={false} />
+}
 
 export interface SceneMeta {
   id: string
@@ -61,6 +69,22 @@ const SIDEBAR_TABS: (SidebarTab & { component: React.ComponentType })[] = [
         className="h-8 w-8 object-contain"
         height={32}
         src="/icons/build.webp"
+        width={32}
+      />
+    ),
+  },
+  {
+    id: 'items',
+    label: 'Items',
+    component: SceneItemsPanel,
+    mobileDefaultSnap: 0.5,
+    mobileIcon: <Package className="h-5 w-5" />,
+    icon: (
+      <Image
+        alt=""
+        className="h-8 w-8 object-contain"
+        height={32}
+        src="/icons/couch.webp"
         width={32}
       />
     ),
