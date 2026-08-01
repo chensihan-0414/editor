@@ -13,7 +13,6 @@ import {
 import { emitter } from '@pascal-app/core'
 import { Hammer, Layers, Package } from 'lucide-react'
 import Image from 'next/image'
-import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { AutoScreenshot } from './auto-screenshot'
@@ -128,6 +127,11 @@ export function SceneLoader({ initialScene, meta }: SceneLoaderProps) {
   const suppressRemoteSaveUntilRef = useRef(0)
   const [conflict, setConflict] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
+  // Set right before we ask the thumbnail pipeline for a frame on behalf of the
+  // "Save image" button, so handleThumb downloads that frame instead of running
+  // the autosave/thumbnail-upload path.
+  const saveDownloadRef = useRef(false)
+  const [factoryNote, setFactoryNote] = useState(false)
 
   const handleLoad = useCallback(async () => initialScene, [initialScene])
 
@@ -222,8 +226,25 @@ export function SceneLoader({ initialScene, meta }: SceneLoaderProps) {
     return () => clearTimeout(timer)
   }, [isAutoScreenshotRequest])
 
+  const handleSaveDesign = useCallback(() => {
+    saveDownloadRef.current = true
+    emitter.emit('camera-controls:generate-thumbnail', { captureMode: 'viewport' })
+  }, [])
+
   const handleThumb = useCallback(
     async (blob: Blob) => {
+      if (saveDownloadRef.current) {
+        saveDownloadRef.current = false
+        const url = URL.createObjectURL(blob)
+        const link = document.createElement('a')
+        link.href = url
+        link.download = `${meta.name.replace(/[^a-z0-9-_]+/gi, '-').replace(/^-+|-+$/g, '') || 'design'}.png`
+        document.body.appendChild(link)
+        link.click()
+        link.remove()
+        setTimeout(() => URL.revokeObjectURL(url), 10_000)
+        return
+      }
       if (isAutoScreenshotRequest) {
         setAutoShotUrl(URL.createObjectURL(blob))
         router.replace(window.location.pathname)
@@ -238,7 +259,7 @@ export function SceneLoader({ initialScene, meta }: SceneLoaderProps) {
         // Swallow errors silently; thumbnail upload is best-effort.
       })
     },
-    [meta.id, isAutoScreenshotRequest, router],
+    [meta.id, meta.name, isAutoScreenshotRequest, router],
   )
 
   return (
@@ -277,12 +298,34 @@ export function SceneLoader({ initialScene, meta }: SceneLoaderProps) {
         </div>
       )}
       <div className="pointer-events-none absolute top-4 right-4 z-40 flex items-center gap-2">
-        <Link
+        {factoryNote && (
+          <span className="pointer-events-auto rounded-md border border-border bg-background/90 px-3 py-1.5 font-medium text-muted-foreground text-xs shadow-sm backdrop-blur">
+            Factory hand-off coming soon
+          </span>
+        )}
+        <button
           className="pointer-events-auto rounded-md border border-border bg-background/90 px-3 py-1.5 font-medium text-xs shadow-sm backdrop-blur hover:bg-accent/40"
-          href="/scenes"
+          onClick={() => {
+            setFactoryNote(true)
+            setTimeout(() => setFactoryNote(false), 3000)
+          }}
+          type="button"
         >
-          All scenes
-        </Link>
+          Contact factory
+        </button>
+        <button
+          className="pointer-events-auto rounded-md border border-primary/40 bg-primary/10 px-3 py-1.5 font-medium text-xs shadow-sm backdrop-blur hover:bg-primary/20"
+          onClick={handleSaveDesign}
+          type="button"
+        >
+          Save image
+        </button>
+        <a
+          className="pointer-events-auto rounded-md border border-border bg-background/90 px-3 py-1.5 font-medium text-xs shadow-sm backdrop-blur hover:bg-accent/40"
+          href="https://request-mauve.vercel.app/"
+        >
+          Home
+        </a>
       </div>
       <Editor
         layoutVersion="v2"
