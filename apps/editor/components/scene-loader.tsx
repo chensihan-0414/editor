@@ -131,7 +131,6 @@ export function SceneLoader({ initialScene, meta }: SceneLoaderProps) {
   // "Save image" button, so handleThumb downloads that frame instead of running
   // the autosave/thumbnail-upload path.
   const saveDownloadRef = useRef(false)
-  const [factoryNote, setFactoryNote] = useState(false)
 
   const handleLoad = useCallback(async () => initialScene, [initialScene])
 
@@ -242,7 +241,12 @@ export function SceneLoader({ initialScene, meta }: SceneLoaderProps) {
         document.body.appendChild(link)
         link.click()
         link.remove()
-        setTimeout(() => URL.revokeObjectURL(url), 10_000)
+        // Give the browser a beat to commit the download before we navigate
+        // away, then send the buyer back to the marketing site's saved screen.
+        setTimeout(() => {
+          URL.revokeObjectURL(url)
+          window.location.href = 'https://request-mauve.vercel.app/?saved=1'
+        }, 1200)
         return
       }
       if (isAutoScreenshotRequest) {
@@ -298,21 +302,6 @@ export function SceneLoader({ initialScene, meta }: SceneLoaderProps) {
         </div>
       )}
       <div className="pointer-events-none absolute top-4 right-4 z-40 flex items-center gap-2">
-        {factoryNote && (
-          <span className="pointer-events-auto rounded-md border border-border bg-background/90 px-3 py-1.5 font-medium text-muted-foreground text-xs shadow-sm backdrop-blur">
-            Factory hand-off coming soon
-          </span>
-        )}
-        <button
-          className="pointer-events-auto rounded-md border border-border bg-background/90 px-3 py-1.5 font-medium text-xs shadow-sm backdrop-blur hover:bg-accent/40"
-          onClick={() => {
-            setFactoryNote(true)
-            setTimeout(() => setFactoryNote(false), 3000)
-          }}
-          type="button"
-        >
-          Contact factory
-        </button>
         <button
           className="pointer-events-auto rounded-md border border-primary/40 bg-primary/10 px-3 py-1.5 font-medium text-xs shadow-sm backdrop-blur hover:bg-primary/20"
           onClick={handleSaveDesign}
