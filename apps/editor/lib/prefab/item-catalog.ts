@@ -77,7 +77,8 @@ export const ITEM_IDS = {
   rectangularCarpet: 'rectangular-carpet',
 
   // Dining / kitchen seating
-  diningTable: 'dining-table',
+  diningTable: 'dining-table', // NOTE: tagged `walnut` — dark wood, avoid for light-wood briefs
+  diningTableOak: 'dining-table-mo9ms5yh', // tagged oak/scandinavian/minimalist — light wood, rectangular (catalog has no round table)
   diningChair: 'dining-chair',
   stool: 'stool',
 
