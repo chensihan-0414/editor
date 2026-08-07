@@ -46,9 +46,12 @@ const WALL_HEIGHT = 2.7
 const DOOR_WIDTH = 0.9
 const DOOR_HEIGHT = 2.1
 
+// Green per feedback on the tropical reference — the roof in that render
+// is a muted sage/olive green; walls use the same tone here (apartment-1
+// and apartment-3 stay pure white, this is apartment-2-specific).
 const WALL_MATERIAL = {
-  preset: 'white' as const,
-  properties: { color: '#ffffff', roughness: 0.85, metalness: 0, opacity: 1, transparent: false, side: 'front' as const },
+  preset: 'custom' as const,
+  properties: { color: '#7c8c5c', roughness: 0.8, metalness: 0, opacity: 1, transparent: false, side: 'front' as const },
 }
 
 // Same unverified-slot-key caveat as furnishing.ts / replica-apartment-1.ts:

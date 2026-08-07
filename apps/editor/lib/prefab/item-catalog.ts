@@ -112,6 +112,7 @@ export const ITEM_IDS = {
   officeDesk: 'office-table',
   officeChair: 'office-chair',
   standingDesk: 'standing-desk-mo8wgz95',
+  floorLamp: 'floor-lamp',
 } as const
 
 export type ItemKey = keyof typeof ITEM_IDS
