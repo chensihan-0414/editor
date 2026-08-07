@@ -23,10 +23,13 @@ import { catalogItem } from './item-catalog'
  * Asset coverage against the full catalog (`./item-catalog`, 111 items —
  * see that file's header for why this replaced the earlier 22-item local
  * subset):
- *   - Matched 1:1: sofa, coffee-table, tv-stand, livingroom-chair,
- *     dining-chair, stool, kitchen-counter, kitchen-bar (island), stove,
- *     fridge, double-bed, bedside-table, dresser, closet, toilet,
- *     bathroom-sink, shower-square.
+ *   - Matched 1:1: sofa, livingroom-chair, kitchen-counter,
+ *     kitchen-bar (island), stove, fridge, double-bed, bedside-table,
+ *     dresser, closet, toilet, bathroom-sink, shower-square.
+ *   - Deliberately NOT placed, despite having a matching catalog id
+ *     (style mismatch, confirmed by screenshot rather than guessed from
+ *     tags — see "Walls & furniture color" below): coffee-table,
+ *     tv-stand, stool.
  *   - Substituted (no closer match in the catalog):
  *       - bench at the foot of the bed -> dresser
  *   - Skipped entirely (no reasonable substitute in the catalog):
@@ -36,25 +39,27 @@ import { catalogItem } from './item-catalog'
  *     and easy to furnish later once a pet-bed asset exists — nothing is
  *     placed inside it today.
  *
- * Note: the bar stools around the kitchen island used to be substituted
- * with `dining-chair` because the old 22-item subset had no stool. The
- * full catalog has a real `stool` item, so that substitution is gone.
- * The island itself used to be a second, freestanding `kitchen-counter`
- * (no island item in the old subset) — deep/wide enough that it read as
- * a partition wall between the kitchen and living room, working against
- * the "厨房→中岛→客厅视线完全贯通" brief. It's now the real
+ * Note: the island used to be a second, freestanding `kitchen-counter`
+ * (no island item in the old 22-item subset) — deep/wide enough that it
+ * read as a partition wall between the kitchen and living room, working
+ * against the "厨房→中岛→客厅视线完全贯通" brief. It's now the real
  * `kitchenBar` item (`wooden-kitchen-bar-moa2hhh4`), a slender wood/quartz
  * bar sized like an actual island rather than a cabinet run.
  *
- * Walls: switched from a warm off-white (#f5f1ea) to pure white (#ffffff)
- * per "色彩严格控制：纯白墙面 + 浅原木主色" — see WALL_MATERIAL below.
- * Furniture color is a separate, harder problem: the catalog has exactly
- * one fixed model per item id (no light/dark variants), so "浅原木主色，
- * 无深色重色家具" can't be guaranteed purely by choosing which ids to
- * place. One known risk: coffee-table is tagged `walnut` (dark wood) —
- * flagged, not fixed, since fixing it needs either a different catalog
- * asset or a per-item material override (ItemNode.slots), not just a
- * different id.
+ * Walls & furniture color: walls switched from a warm off-white (#f5f1ea)
+ * to pure white (#ffffff) per "色彩严格控制：纯白墙面 + 浅原木主色" — see
+ * WALL_MATERIAL below. Furniture color is a harder problem: the catalog
+ * has exactly one fixed model per item id (no light/dark variants).
+ * Rendering the scene and inspecting it directly (not just reading tags)
+ * showed `coffee-table` and `tv-stand` both render as dark reddish-brown
+ * wood, and `stool` has a black seat — all three clash with "浅原木主色，
+ * 无深色重色家具" and were removed from placement rather than left in
+ * (see the `item(...)` calls below). Re-add any of them via
+ * `catalogItem(...)` once a lighter-toned catalog variant exists, or once
+ * someone manually recolors the placed instance in the editor via its
+ * per-slot material override (ItemNode.slots — requires opening the item
+ * in the editor UI, since paintable slot ids live inside each glb, not in
+ * this file).
  */
 
 const WALL_THICKNESS = 0.15
@@ -117,12 +122,26 @@ export async function buildAndSaveApartmentReplica1(
     scene.createNode(zone, level.id)
   }
 
-  const item = (asset: AssetInput, x: number, z: number, rotationDeg: 0 | 90 | 180 | 270, metadata?: Record<string, unknown>) => {
+  // Unverified guess at the paintable slot key — see the matching constant
+  // and long comment in lib/prefab/furnishing.ts for why (glb slot names
+  // aren't discoverable from this codebase; a wrong key just silently
+  // doesn't recolor, it never breaks anything).
+  const LIGHT_WOOD_SLOT_OVERRIDE: Record<string, string> = { wood: 'library:wood-woodfine1' }
+
+  const item = (
+    asset: AssetInput,
+    x: number,
+    z: number,
+    rotationDeg: 0 | 90 | 180 | 270,
+    metadata?: Record<string, unknown>,
+    slots?: Record<string, string>,
+  ) => {
     const node = ItemNode.parse({
       name: asset.name,
       position: [x, 0, z],
       rotation: facing(rotationDeg),
       asset,
+      slots,
       metadata: { autoFurnished: true, replica: 'apartment-1', ...metadata },
     })
     scene.createNode(node, level.id)
@@ -135,27 +154,30 @@ export async function buildAndSaveApartmentReplica1(
 
   // Island between kitchen and living — a real freestanding bar item
   // (wooden-kitchen-bar-moa2hhh4), not a full kitchen-counter run, so it
-  // doesn't read as a wall splitting the kitchen/living sightline. Three
-  // real stools sit on its south side, at bar height (surface.height 1.06).
+  // doesn't read as a wall splitting the kitchen/living sightline.
+  // No stools placed on it: catalog `stool` renders with a black seat,
+  // which clashes with the "浅原木主色，无深色重色家具" brief and the
+  // catalog has no lighter-seat alternative — bar sits empty for now
+  // rather than mix in a dark accent. Re-add via catalogItem('stool')
+  // once a light-color stool exists.
   item(catalogItem('kitchenBar'), 5.5, 4, 0)
-  item(catalogItem('stool'), 4.9, 3.3, 0)
-  item(catalogItem('stool'), 5.5, 3.3, 0)
-  item(catalogItem('stool'), 6.1, 3.3, 0)
 
-  // Living room, two sofas as in the reference.
+  // Living room, two sofas as in the reference. No coffee table or TV
+  // stand: both catalog items render as dark reddish-brown wood
+  // (confirmed by screenshot), which clashes with the same brief — see
+  // the matching note in lib/prefab/furnishing.ts for the 'living' case.
   item(catalogItem('sofa'), 2.2, 3.4, 180)
-  item(catalogItem('coffeeTable'), 2.2, 2.2, 180)
-  item(catalogItem('tvStand'), 2.2, 0.5, 0)
   item(catalogItem('sofa'), 4.6, 3.2, 180)
   item(catalogItem('livingroomChair'), 4.1, 1.5, 270)
 
   // Entry closet.
   item(catalogItem('closet'), 0.5, 1, 90)
 
-  // Bedroom.
+  // Bedroom. bedsideTable/dresser recolored — see LIGHT_WOOD_SLOT_OVERRIDE
+  // above (both render dark reddish wood by default).
   item(catalogItem('doubleBed'), 8.5, 5.9, 180)
-  item(catalogItem('bedsideTable'), 7.4, 5.9, 180)
-  item(catalogItem('dresser'), 9.4, 3.6, 180, { substituteFor: 'foot-of-bed storage bench' })
+  item(catalogItem('bedsideTable'), 7.4, 5.9, 180, undefined, LIGHT_WOOD_SLOT_OVERRIDE)
+  item(catalogItem('dresser'), 9.4, 3.6, 180, { substituteFor: 'foot-of-bed storage bench' }, LIGHT_WOOD_SLOT_OVERRIDE)
 
   // Bathroom.
   item(catalogItem('bathroomSink'), 8.5, 0.5, 0)

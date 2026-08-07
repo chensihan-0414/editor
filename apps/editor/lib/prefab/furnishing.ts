@@ -8,7 +8,30 @@ export interface FurniturePlacement {
   position: [number, number, number]
   rotation: [number, number, number]
   asset: AssetInput
+  // Per-slot material overrides (ItemNode.slots — see
+  // packages/core/src/schema/nodes/item.ts). Consumed by whatever builds
+  // the actual ItemNode from this placement (see app/step1/page.tsx's
+  // buildAndSaveScene, and replica-apartment-1.ts's own `item()` helper).
+  slots?: Record<string, string>
 }
+
+// `library:<id>` refs point at a real, confirmed-existing entry in
+// MATERIAL_CATALOG (packages/core/src/material-library.ts) — e.g.
+// 'wood-woodfine1' is tagged `surfaces: ['floor', 'wall', 'furniture']`,
+// a light natural wood finish safe to use on furniture.
+//
+// UNVERIFIED PIECE: the slot key ('wood' below) is a guess, not confirmed.
+// Per-item paintable regions are named inside each glb (material names
+// prefixed `slot_…`, see packages/core/src/lib/slots.ts /
+// deriveSlotId) — there's no static list of them in this repo, and the
+// live editor's material-paint panel is what would normally show the
+// real name. A wrong slot key is harmless (dangling refs silently render
+// the item's default material — packages/core/src/schema/nodes/item.ts,
+// `slots` field docstring), it just won't recolor anything. To confirm:
+// open a generated scene, click the dresser/bedside-table, use its
+// paint/material tool — whatever region label it shows, lowercase it and
+// swap it in below (e.g. "Frame" -> 'frame').
+const LIGHT_WOOD_SLOT_OVERRIDE: Record<string, string> = { wood: 'library:wood-woodfine1' }
 
 // Rotation convention (degrees, converted to radians on the Y axis):
 // 0 -> item faces +Z, 90 -> faces +X, 180 -> faces -Z, 270 -> faces -X.
@@ -46,7 +69,8 @@ export function furnishRoomPlacements(
     x: number,
     z: number,
     rotation: [number, number, number],
-  ): FurniturePlacement => ({ name: asset.name, position: [x, 0, z], rotation, asset })
+    slots?: Record<string, string>,
+  ): FurniturePlacement => ({ name: asset.name, position: [x, 0, z], rotation, asset, slots })
 
   const placements: FurniturePlacement[] = []
 
@@ -57,13 +81,17 @@ export function furnishRoomPlacements(
       placements.push(place(doubleBed, centerX, maxZ - bedD / 2 - 0.1, facing(180)))
       if (width > bedW + 1.1) {
         const bedsideTable = catalogItem('bedsideTable')
-        placements.push(place(bedsideTable, centerX - bedW / 2 - 0.35, maxZ - 0.35, facing(180)))
-        placements.push(place(bedsideTable, centerX + bedW / 2 + 0.35, maxZ - 0.35, facing(180)))
+        // Recolored: this item renders dark reddish wood by default, which
+        // clashes with the "浅原木主色" brief — see LIGHT_WOOD_SLOT_OVERRIDE
+        // above for why the slot key is unverified.
+        placements.push(place(bedsideTable, centerX - bedW / 2 - 0.35, maxZ - 0.35, facing(180), LIGHT_WOOD_SLOT_OVERRIDE))
+        placements.push(place(bedsideTable, centerX + bedW / 2 + 0.35, maxZ - 0.35, facing(180), LIGHT_WOOD_SLOT_OVERRIDE))
       }
       if (area >= 10) {
         const dresser = catalogItem('dresser')
         const [, , dresserD] = dresser.dimensions ?? [1.23, 0.73, 0.61]
-        placements.push(place(dresser, minX + dresserD / 2 + 0.1, centerZFraction(minZ, maxZ, 0.7), facing(90)))
+        // Recolored, same reason as bedsideTable above.
+        placements.push(place(dresser, minX + dresserD / 2 + 0.1, centerZFraction(minZ, maxZ, 0.7), facing(90), LIGHT_WOOD_SLOT_OVERRIDE))
       }
       if (area >= 13) {
         const closet = catalogItem('closet')
@@ -98,9 +126,15 @@ export function furnishRoomPlacements(
       const sofa = catalogItem('sofa')
       const [, , sofaD] = sofa.dimensions ?? [2.06, 0.74, 1.01]
       placements.push(place(sofa, centerX, maxZ - sofaD / 2 - 0.1, facing(180)))
-      placements.push(place(catalogItem('coffeeTable'), centerX, centerZFraction(minZ, maxZ, 0.5), facing(180)))
       placements.push(place(catalogItem('livingroomChair'), minX + 0.65, minZ + width * 0.3, facing(90)))
-      placements.push(place(catalogItem('tvStand'), centerX, minZ + 0.25, facing(0)))
+      // coffee-table and tv-stand deliberately NOT placed: both catalog
+      // items render as dark reddish-brown wood (confirmed by screenshot,
+      // not just their tags), which clashes with the "纯白墙面 + 浅原木
+      // 主色，无深色重色家具" brief. The catalog has no lighter-wood
+      // alternative for either category, so the room goes without a
+      // coffee table / TV stand for now rather than mix in a dark
+      // wood piece. Re-add via catalogItem('coffeeTable') /
+      // catalogItem('tvStand') once a light-wood variant exists.
       break
     }
     case 'storage':
