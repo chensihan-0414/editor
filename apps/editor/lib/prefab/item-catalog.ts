@@ -50,6 +50,19 @@ export function getCatalogItem(id: string): AssetInput {
  *     replica-apartment-1.ts substituted `dining-chair` for these because
  *     the small 22-item subset didn't include a stool — that substitution
  *     is no longer necessary and has been removed.
+ *   - Kitchen island: `kitchenBar` (catalog id `wooden-kitchen-bar-moa2hhh4`,
+ *     tags include bar/counter/island/wood/quartz) is a real match — a
+ *     slender freestanding bar, not a full cabinet run. Earlier revisions
+ *     substituted a second `kitchen-counter` here, which was deep/wide
+ *     enough to read as a partition wall between the kitchen and living
+ *     room in the reference render — that substitution is removed.
+ *   - Some catalog items carry a fixed material that may not match a
+ *     "light oak, no dark/heavy pieces" brief — e.g. `coffee-table` is
+ *     tagged `walnut` (dark wood) + `metal`. The catalog has no color
+ *     variants per item (one fixed model per id), so this can't be fixed
+ *     by swapping an id here; it needs either a render check to confirm
+ *     it's actually a problem, or a per-item material/slot override
+ *     (see ItemNode.slots in packages/core/src/schema/nodes/item.ts).
  *   - Pet beds / dog beds: still no matching catalog item. The "Pet
  *     corner" zone in replica-apartment-1.ts stays intentionally empty.
  */
@@ -72,6 +85,7 @@ export const ITEM_IDS = {
   kitchen: 'kitchen',
   kitchenCounter: 'kitchen-counter',
   kitchenCabinet: 'kitchen-cabinet',
+  kitchenBar: 'wooden-kitchen-bar-moa2hhh4', // slender wood/quartz bar — real match for a freestanding island, not a full counter run
   hood: 'hood',
   stove: 'stove',
   fridge: 'fridge',

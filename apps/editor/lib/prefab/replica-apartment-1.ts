@@ -24,12 +24,10 @@ import { catalogItem } from './item-catalog'
  * see that file's header for why this replaced the earlier 22-item local
  * subset):
  *   - Matched 1:1: sofa, coffee-table, tv-stand, livingroom-chair,
- *     dining-chair, stool, kitchen-counter, stove, fridge, double-bed,
- *     bedside-table, dresser, closet, toilet, bathroom-sink,
- *     shower-square.
+ *     dining-chair, stool, kitchen-counter, kitchen-bar (island), stove,
+ *     fridge, double-bed, bedside-table, dresser, closet, toilet,
+ *     bathroom-sink, shower-square.
  *   - Substituted (no closer match in the catalog):
- *       - freestanding kitchen island -> a second, freestanding
- *         kitchen-counter
  *       - bench at the foot of the bed -> dresser
  *   - Skipped entirely (no reasonable substitute in the catalog):
  *       - the entry console desk + 2 chairs
@@ -41,6 +39,22 @@ import { catalogItem } from './item-catalog'
  * Note: the bar stools around the kitchen island used to be substituted
  * with `dining-chair` because the old 22-item subset had no stool. The
  * full catalog has a real `stool` item, so that substitution is gone.
+ * The island itself used to be a second, freestanding `kitchen-counter`
+ * (no island item in the old subset) — deep/wide enough that it read as
+ * a partition wall between the kitchen and living room, working against
+ * the "厨房→中岛→客厅视线完全贯通" brief. It's now the real
+ * `kitchenBar` item (`wooden-kitchen-bar-moa2hhh4`), a slender wood/quartz
+ * bar sized like an actual island rather than a cabinet run.
+ *
+ * Walls: switched from a warm off-white (#f5f1ea) to pure white (#ffffff)
+ * per "色彩严格控制：纯白墙面 + 浅原木主色" — see WALL_MATERIAL below.
+ * Furniture color is a separate, harder problem: the catalog has exactly
+ * one fixed model per item id (no light/dark variants), so "浅原木主色，
+ * 无深色重色家具" can't be guaranteed purely by choosing which ids to
+ * place. One known risk: coffee-table is tagged `walnut` (dark wood) —
+ * flagged, not fixed, since fixing it needs either a different catalog
+ * asset or a per-item material override (ItemNode.slots), not just a
+ * different id.
  */
 
 const WALL_THICKNESS = 0.15
@@ -49,8 +63,8 @@ const DOOR_WIDTH = 0.9
 const DOOR_HEIGHT = 2.1
 
 const WALL_MATERIAL = {
-  preset: 'plaster' as const,
-  properties: { color: '#f5f1ea', roughness: 0.65, metalness: 0, opacity: 1, transparent: false, side: 'front' as const },
+  preset: 'white' as const,
+  properties: { color: '#ffffff', roughness: 0.85, metalness: 0, opacity: 1, transparent: false, side: 'front' as const },
 }
 
 function facing(deg: 0 | 90 | 180 | 270): [number, number, number] {
@@ -119,10 +133,11 @@ export async function buildAndSaveApartmentReplica1(
   item(catalogItem('stove'), 3.6, 6.5, 180)
   item(catalogItem('fridge'), 5.7, 6.55, 180)
 
-  // Island between kitchen and living — nearest available substitute for
-  // the freestanding island in the photo is a second, freestanding
-  // kitchen-counter; three real stools sit on its south side.
-  item(catalogItem('kitchenCounter'), 5.5, 4, 0, { substituteFor: 'kitchen island' })
+  // Island between kitchen and living — a real freestanding bar item
+  // (wooden-kitchen-bar-moa2hhh4), not a full kitchen-counter run, so it
+  // doesn't read as a wall splitting the kitchen/living sightline. Three
+  // real stools sit on its south side, at bar height (surface.height 1.06).
+  item(catalogItem('kitchenBar'), 5.5, 4, 0)
   item(catalogItem('stool'), 4.9, 3.3, 0)
   item(catalogItem('stool'), 5.5, 3.3, 0)
   item(catalogItem('stool'), 6.1, 3.3, 0)
