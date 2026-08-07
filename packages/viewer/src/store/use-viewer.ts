@@ -406,7 +406,17 @@ const useViewer = create<ViewerState>()(
       levelMode: 'stacked',
       setLevelMode: (mode) => set({ levelMode: mode }),
 
-      wallMode: 'up',
+      // Default changed from 'up' (solid, full-height walls) to 'down'
+      // (low/transparent walls) per feedback that every freshly opened scene
+      // should already read as open/see-through, instead of requiring a
+      // manual "Walls: Low" click every time. This is a global viewer
+      // default (packages/viewer), not scene-specific — it changes the
+      // first-load wall mode for every scene in the app, not just prefab-
+      // generated ones. A scene that has its own persisted wallMode (see
+      // the `wallMode: state.wallMode` rehydration below) still restores
+      // whatever it was last set to; this only changes what a session with
+      // no prior state starts at.
+      wallMode: 'down',
       setWallMode: (mode) => set({ wallMode: mode }),
 
       showScans: true,
