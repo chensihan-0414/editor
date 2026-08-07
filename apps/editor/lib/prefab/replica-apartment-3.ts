@@ -7,61 +7,74 @@ import {
   LevelNode,
   ItemNode,
   DoorNode,
+  SlabNode,
   type AssetInput,
 } from '@pascal-app/core/schema'
 import { catalogItem } from './item-catalog'
 
 /**
- * Hand-authored layout for the "Japandi minimalist 1-bedroom" design brief
- * (full text kept verbatim below for future reference). Left-to-right zone
- * order per the brief: pet corner -> dining nook -> open kitchen/island/
- * living -> [tatami room -> bathroom (wet+dry)] / master bedroom on the
- * right. Reachable via /step1?replica=apartment-3. This REPLACES the
- * earlier, much smaller "Japanese studio" version of apartment-3 — the new
- * brief is a full redesign, not an incremental tweak.
+ * Hand-authored layout for apartment-3, "modern Japanese log style whole
+ * house" (v2 — replaces the earlier Japandi/tatami-room version). Reachable
+ * via /step1?replica=apartment-3.
  *
- * Design brief (verbatim, 2026-08-07):
+ * Design brief (verbatim, 2026-08-07, v2):
  * "45° isometric cutaway dollhouse view, pure plain white background,
- * Japandi minimalist 1-bedroom apartment 3D architectural render, miniature
- * diorama texture; layout order from left to right: left pet area with
- * wooden pet beds and puppy ornaments, adjacent small dining nook with
- * wooden table and chairs; open central zone: full light oak kitchen
- * cabinetry with stove and sink, large wooden kitchen island with 3 black
- * bar stools, living area with two sofas, TV cabinet, coffee table and
- * light grey rug; right side includes separated wet-dry bathroom (shower,
- * vanity sink, toilet room), tatami room, master bedroom with double bed;
- * light oak flooring, off-white walls, warm neutral palette, soft diffused
- * natural daylight, gentle soft shadows, matte wood texture, subtle daily
- * decor details, accurate perspective and spatial proportion,
- * photorealistic, 8K ultra HD, clean minimalist composition"
+ * modern Japanese log style whole house 3D architectural render, miniature
+ * diorama texture, a large amount of light oak design is adopted in the
+ * whole space, wooden floors cover the entire house with delicate and
+ * natural wood grain, cabinets, door frames, furniture, bar counters and
+ * tatami all adopt unified log color system; spatial layout from left to
+ * right: pet leisure area on the far left, adjacent small dining area for
+ * two people, open kitchen and living room in the middle, bathroom, second
+ * bedroom and master bedroom on the right; off-white walls form a soft
+ * contrast with log color, minimalist and restrained soft furnishings,
+ * light beige sofas, white bedding and black bar stools as embellishments;
+ * soft natural daylight, clear and soft shadows, matte solid wood material,
+ * architectural-level realistic rendering, accurate perspective,
+ * coordinated spatial proportion, clean and tidy picture, 8K ultra HD"
+ *
+ * What changed vs. v1 (the "Japandi 1-bedroom" version):
+ *   - Added a whole-house wood floor: v1 never set floor material (no
+ *     SlabNode existed in any replica file yet). This brief explicitly
+ *     calls out "wooden floors cover the entire house," so this version
+ *     adds one `SlabNode` spanning the full footprint, using
+ *     `slots: { surface: 'library:wood-woodfine1' }` — the same confirmed
+ *     real light-oak material already used for the light-wood furniture
+ *     overrides elsewhere in this codebase. (Note: this is a different,
+ *     higher-confidence reference than the earlier per-item `slots` guess
+ *     on furniture pieces — `SlabNode`'s own slot key is documented in its
+ *     schema as literally `surface`, not a guessed glb-internal name.)
+ *   - Dedicated tatami room removed. v1 had a stand-alone tatami room; this
+ *     brief's explicit left-to-right room list no longer includes one — it
+ *     only mentions "tatami" once, describing it as part of the unified
+ *     log-color material palette, not as a separate zone. Replaced with a
+ *     second bedroom, per the brief's explicit list.
+ *   - Bathroom simplified back to one room (no wet/dry split stub wall) —
+ *     this brief just says "bathroom," unlike v1's brief which explicitly
+ *     asked for "separated wet-dry bathroom."
+ *   - Right-side circulation redone: v1 had the bathroom only reachable by
+ *     walking through the tatami room. This version gives bathroom, second
+ *     bedroom, and master bedroom each their own direct door off the
+ *     open living area, stacked front-to-back — cleaner circulation, no
+ *     walking through one private room to reach another.
  *
  * Not modeled — no matching catalog asset, same "flag it, don't fake it"
- * approach as apartment-1/2:
+ * approach as the other replica files:
  *   - Wooden pet beds / puppy ornaments (pet corner stays empty, labeled).
- *   - Tatami mat flooring/texture (tatami room stays empty, labeled — it
- *     doubles as the walkway to the bathroom, a real layout pattern in
- *     small Japanese apartments, not just a leftover space).
  *   - Camera/render style notes (45° isometric cutaway, dollhouse/diorama
- *     look, lighting, 8K) — those are renderer/viewer settings, not
- *     something this wall/zone/item builder controls.
- *   - Floor material ("light oak flooring") — this builder has never set
- *     floor materials (no SlabNode), only walls; out of scope here too
- *     unless asked to extend it.
+ *     look, lighting, 8K) — renderer/viewer settings, not something this
+ *     wall/zone/item/slab builder controls.
  *
- * Matched fairly directly: `kitchen` (full cabinetry+stove+sink),
- * `kitchenBar` (the island — see replica-apartment-1.ts's header for why
- * this id and not a plain kitchen-counter), `stool` x3 at the island
- * (catalog default is a black seat — matches "3 black bar stools", no
- * light-wood override needed here unlike apartment-1/furnishing.ts), two
- * `sofa`, `tvStand`, `coffeeTable`, `rectangularCarpet` (light grey rug),
- * `diningTableOak` + `diningChair` x4 (wooden dining set — oak variant,
- * not the walnut `diningTable`, consistent with the rest of this session's
- * "avoid the dark walnut items" pattern), `doubleBed` + `bedsideTable` x2,
- * `showerSquare`, `bathroomSink`, `toilet`.
- *
- * Walls: both interiorMaterial AND exteriorMaterial are set this time
- * (previous replica files only set interiorMaterial) — off-white per the
- * brief, per the user's request to also cover exterior walls.
+ * Matched fairly directly: `kitchen`, `kitchenBar` (island), `stool` x3
+ * (catalog default is black — matches "black bar stools as embellishments"
+ * directly, no override needed), two `sofa` (catalog default reads as a
+ * light/neutral upholstery — matches "light beige sofas," no color variant
+ * exists to pick a more specific beige), `tvStand`, `coffeeTable`,
+ * `rectangularCarpet`, `diningTableOak` + `diningChair` x2 (2-person dining,
+ * down from x4 in v1), `doubleBed` + `bedsideTable` x2 (master bedroom;
+ * catalog default bedding reads as white — matches "white bedding," no
+ * color variant to pick a more specific one), `singleBed` + `bedsideTable`
+ * x1 (new second bedroom), `showerSquare`, `bathroomSink`, `toilet`.
  */
 
 const WALL_THICKNESS = 0.15
@@ -69,8 +82,9 @@ const WALL_HEIGHT = 2.7
 const DOOR_WIDTH = 0.9
 const DOOR_HEIGHT = 2.1
 
-// "Off-white" — warmer/greyer than the stark #ffffff used in apartment-1,
-// per this brief's own wording ("off-white walls", not "pure white").
+// Off-white walls, per the brief's own wording ("off-white walls form a
+// soft contrast with log color") — both interior and exterior set, as in
+// v1, since exterior wall material was a standing ask for this project.
 const OFF_WHITE_MATERIAL = {
   preset: 'custom' as const,
   properties: { color: '#f0ece2', roughness: 0.85, metalness: 0, opacity: 1, transparent: false, side: 'front' as const },
@@ -81,7 +95,7 @@ function facing(deg: 0 | 90 | 180 | 270): [number, number, number] {
 }
 
 export async function buildAndSaveApartmentReplica3(
-  sceneName = 'Reference apartment — Japandi 1-bedroom',
+  sceneName = 'Reference apartment — modern Japanese log style',
 ): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
   const scene = useScene.getState()
   scene.clearScene()
@@ -103,23 +117,35 @@ export async function buildAndSaveApartmentReplica3(
       exteriorMaterial: OFF_WHITE_MATERIAL,
     })
 
-  // Perimeter, 14m x 7m. Left 9m is one open volume (pet corner, dining,
-  // kitchen, island, living — no interior walls, matching the brief's
-  // "open central zone" and general Japandi open-plan feel). Right 5m is
-  // walled into tatami room (front-left of that section, doubling as the
-  // walkway to the bathroom), bathroom (front-right, wet/dry split by a
-  // short stub wall), and the master bedroom (the whole back strip).
+  // Perimeter, 14m x 7m. Left 9m (x:0-9) is one open volume — pet corner,
+  // 2-person dining, open kitchen + living — matching the brief's "from
+  // left to right ... open kitchen and living room in the middle" wording
+  // (no interior walls carving up that flow). Right 5m (x:9-14) is walled
+  // into three rooms stacked front-to-back, each with its own door
+  // straight off the open area: bathroom, second bedroom, master bedroom.
   const south = makeWall([0, 0], [14, 0])
   const east = makeWall([14, 0], [14, 7])
   const north = makeWall([14, 7], [0, 7])
   const west = makeWall([0, 7], [0, 0])
-  const rightDivider = makeWall([9, 0], [9, 7]) // open zone <-> right-side rooms
-  const bedroomDivider = makeWall([9, 3.5], [14, 3.5]) // bedroom <-> tatami/bathroom row
-  const bathTatamiDivider = makeWall([11.5, 0], [11.5, 3.5]) // tatami <-> bathroom
-  const wetDryStub = makeWall([12.8, 0], [12.8, 2]) // short partial wall inside the bathroom — visually splits wet (shower) from dry (sink/toilet) without needing its own door; leaves z:2-3.5 open as a walkway, same as how a real wet/dry Japanese bathroom is usually just curtained/stepped, not fully partitioned
+  const rightDivider = makeWall([9, 0], [9, 7]) // open zone <-> the 3 right-side rooms
+  const bathBedroomDivider = makeWall([9, 2.2], [14, 2.2]) // bathroom <-> second bedroom
+  const bedroomDivider = makeWall([9, 4.6], [14, 4.6]) // second bedroom <-> master bedroom
 
-  const allWalls = [south, east, north, west, rightDivider, bedroomDivider, bathTatamiDivider, wetDryStub]
+  const allWalls = [south, east, north, west, rightDivider, bathBedroomDivider, bedroomDivider]
   for (const wall of allWalls) scene.createNode(wall, level.id)
+
+  // Whole-house wood floor — "wooden floors cover the entire house."
+  const floorSlab = SlabNode.parse({
+    polygon: [
+      [0, 0],
+      [14, 0],
+      [14, 7],
+      [0, 7],
+    ],
+    slots: { surface: 'library:wood-woodfine1' },
+    autoFromWalls: false,
+  })
+  scene.createNode(floorSlab, level.id)
 
   const zones: { name: string; polygon: [number, number][]; wallIds: string[]; metadata?: Record<string, unknown> }[] = [
     {
@@ -134,7 +160,7 @@ export async function buildAndSaveApartmentReplica3(
       metadata: { note: 'Brief calls for wooden pet beds + puppy ornaments — no matching catalog asset, left empty on purpose.' },
     },
     {
-      name: 'Dining nook',
+      name: 'Dining area (2-person)',
       polygon: [
         [0, 0],
         [3.5, 0],
@@ -144,7 +170,7 @@ export async function buildAndSaveApartmentReplica3(
       wallIds: [south.id, west.id],
     },
     {
-      name: 'Open kitchen + island + living',
+      name: 'Open kitchen + living room',
       polygon: [
         [3.5, 0],
         [9, 0],
@@ -156,30 +182,30 @@ export async function buildAndSaveApartmentReplica3(
       wallIds: [south.id, rightDivider.id, north.id, west.id],
     },
     {
-      name: 'Tatami room (mat texture not modeled — also the walkway to the bathroom)',
+      name: 'Bathroom',
       polygon: [
         [9, 0],
-        [11.5, 0],
-        [11.5, 3.5],
-        [9, 3.5],
+        [14, 0],
+        [14, 2.2],
+        [9, 2.2],
       ],
-      wallIds: [south.id, bathTatamiDivider.id, bedroomDivider.id, rightDivider.id],
+      wallIds: [south.id, east.id, bathBedroomDivider.id, rightDivider.id],
     },
     {
-      name: 'Bathroom (wet + dry)',
+      name: 'Second bedroom',
       polygon: [
-        [11.5, 0],
-        [14, 0],
-        [14, 3.5],
-        [11.5, 3.5],
+        [9, 2.2],
+        [14, 2.2],
+        [14, 4.6],
+        [9, 4.6],
       ],
-      wallIds: [south.id, east.id, bedroomDivider.id, bathTatamiDivider.id, wetDryStub.id],
+      wallIds: [bathBedroomDivider.id, east.id, bedroomDivider.id, rightDivider.id],
     },
     {
       name: 'Master bedroom',
       polygon: [
-        [9, 3.5],
-        [14, 3.5],
+        [9, 4.6],
+        [14, 4.6],
         [14, 7],
         [9, 7],
       ],
@@ -210,19 +236,16 @@ export async function buildAndSaveApartmentReplica3(
     scene.createNode(node, level.id)
   }
 
-  // Dining nook.
+  // Dining area — 2-person, one table + 2 chairs on opposite sides.
   item(catalogItem('diningTableOak'), 1.75, 2.2, 0)
-  item(catalogItem('diningChair'), 1.05, 1.5, 180)
-  item(catalogItem('diningChair'), 2.45, 1.5, 180)
-  item(catalogItem('diningChair'), 1.05, 2.9, 0)
-  item(catalogItem('diningChair'), 2.45, 2.9, 0)
+  item(catalogItem('diningChair'), 1.0, 2.2, 90)
+  item(catalogItem('diningChair'), 2.5, 2.2, 270)
 
   // Kitchen, along the north wall.
   item(catalogItem('kitchen'), 4.5, 6.53, 180)
   item(catalogItem('fridge'), 8.4, 6.55, 180)
 
-  // Kitchen island + 3 stools (brief wants black seats — catalog default,
-  // no recolor needed here).
+  // Kitchen island + 3 black bar stools.
   item(catalogItem('kitchenBar'), 6.8, 4.5, 0)
   item(catalogItem('stool'), 6.2, 3.7, 0)
   item(catalogItem('stool'), 6.8, 3.7, 0)
@@ -235,19 +258,23 @@ export async function buildAndSaveApartmentReplica3(
   item(catalogItem('coffeeTable'), 5.75, 1.2, 0)
   item(catalogItem('rectangularCarpet'), 5.75, 1.5, 0)
 
-  // Bathroom: shower on the wet (west) side of the stub wall, sink + toilet
-  // on the dry (east) side.
-  item(catalogItem('showerSquare'), 12.15, 1, 0)
-  item(catalogItem('bathroomSink'), 13.4, 2.8, 180)
-  item(catalogItem('toilet'), 13.4, 0.6, 0)
+  // Bathroom.
+  item(catalogItem('showerSquare'), 9.9, 0.5, 90)
+  item(catalogItem('bathroomSink'), 13.4, 0.5, 0)
+  item(catalogItem('toilet'), 13.4, 1.8, 0)
 
-  // Master bedroom.
+  // Second bedroom — single bed + one bedside table.
+  item(catalogItem('singleBed'), 11.5, 3.9, 0)
+  item(catalogItem('bedsideTable'), 9.6, 3.9, 0)
+
+  // Master bedroom — double bed + two bedside tables.
   item(catalogItem('doubleBed'), 11.5, 5.9, 180)
   item(catalogItem('bedsideTable'), 10.39, 6.65, 180)
   item(catalogItem('bedsideTable'), 12.61, 6.65, 180)
 
-  // Doors: entry (dining nook), tatami room, master bedroom, and bathroom
-  // (reached via the tatami room, not directly off the open zone).
+  // Doors: entry off the south wall into the dining area, plus one direct
+  // door per right-side room off the rightDivider wall — no walking
+  // through one private room to reach another.
   const entryDoor = DoorNode.parse({
     wallId: south.id,
     parentId: south.id,
@@ -257,32 +284,32 @@ export async function buildAndSaveApartmentReplica3(
   })
   scene.createNode(entryDoor, south.id)
 
-  const tatamiDoor = DoorNode.parse({
-    wallId: rightDivider.id,
-    parentId: rightDivider.id,
-    position: [1.75, DOOR_HEIGHT / 2, 0], // rightDivider runs Z:0->7; tatami is the 0-3.5 stretch, centered
-    width: DOOR_WIDTH,
-    height: DOOR_HEIGHT,
-  })
-  scene.createNode(tatamiDoor, rightDivider.id)
-
-  const bedroomDoor = DoorNode.parse({
-    wallId: rightDivider.id,
-    parentId: rightDivider.id,
-    position: [5.25, DOOR_HEIGHT / 2, 0], // bedroom is the 3.5-7 stretch of the same wall, centered
-    width: DOOR_WIDTH,
-    height: DOOR_HEIGHT,
-  })
-  scene.createNode(bedroomDoor, rightDivider.id)
-
   const bathroomDoor = DoorNode.parse({
-    wallId: bathTatamiDivider.id,
-    parentId: bathTatamiDivider.id,
-    position: [1.75, DOOR_HEIGHT / 2, 0], // wall runs Z:0->3.5, centered
+    wallId: rightDivider.id,
+    parentId: rightDivider.id,
+    position: [1.1, DOOR_HEIGHT / 2, 0], // bathroom strip is z:0-2.2, centered
     width: DOOR_WIDTH,
     height: DOOR_HEIGHT,
   })
-  scene.createNode(bathroomDoor, bathTatamiDivider.id)
+  scene.createNode(bathroomDoor, rightDivider.id)
+
+  const secondBedroomDoor = DoorNode.parse({
+    wallId: rightDivider.id,
+    parentId: rightDivider.id,
+    position: [3.4, DOOR_HEIGHT / 2, 0], // second bedroom strip is z:2.2-4.6, centered
+    width: DOOR_WIDTH,
+    height: DOOR_HEIGHT,
+  })
+  scene.createNode(secondBedroomDoor, rightDivider.id)
+
+  const masterBedroomDoor = DoorNode.parse({
+    wallId: rightDivider.id,
+    parentId: rightDivider.id,
+    position: [5.8, DOOR_HEIGHT / 2, 0], // master bedroom strip is z:4.6-7, centered
+    width: DOOR_WIDTH,
+    height: DOOR_HEIGHT,
+  })
+  scene.createNode(masterBedroomDoor, rightDivider.id)
 
   const finalState = useScene.getState()
   const sceneApiToken = process.env.NEXT_PUBLIC_PASCAL_SCENE_API_TOKEN
