@@ -113,6 +113,18 @@ export const ITEM_IDS = {
   officeChair: 'office-chair',
   standingDesk: 'standing-desk-mo8wgz95',
   floorLamp: 'floor-lamp',
+
+  // Outdoor / landscaping — deliberately small. The full 111-item catalog
+  // has only 4 plant-ish outdoor items total: `tree` (generic, tag
+  // `vegetation` only — no species), `palm` (tropical palm), `fir-tree`
+  // (evergreen/conifer — reads as "pine"), and `bush`. There is NO catalog
+  // support for named broadleaf species (ash, oak), climbing vines/trellis
+  // structures, stepping-stone paths, or lawn/grass — see
+  // replica-apartment-2.ts's header comment for how a "species allowlist"
+  // brief (Ash/Bush/Trellis/Oak, excluding Pine/Aspen) gets approximated
+  // with what's actually here.
+  tree: 'tree', // generic broadleaf-ish canopy tree — closest available stand-in for "Ash" and "Oak" (catalog has no separate species models)
+  bush: 'bush', // real 1:1 match for "Bush"
 } as const
 
 export type ItemKey = keyof typeof ITEM_IDS
