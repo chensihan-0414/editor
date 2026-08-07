@@ -7,7 +7,6 @@ import {
   LevelNode,
   ItemNode,
   DoorNode,
-  SlabNode,
   type AssetInput,
 } from '@pascal-app/core/schema'
 import { catalogItem } from './item-catalog'
@@ -34,16 +33,19 @@ import { catalogItem } from './item-catalog'
  * coordinated spatial proportion, clean and tidy picture, 8K ultra HD"
  *
  * What changed vs. v1 (the "Japandi 1-bedroom" version):
- *   - Added a whole-house wood floor: v1 never set floor material (no
- *     SlabNode existed in any replica file yet). This brief explicitly
- *     calls out "wooden floors cover the entire house," so this version
- *     adds one `SlabNode` spanning the full footprint, using
- *     `slots: { surface: 'library:wood-woodfine1' }` — the same confirmed
- *     real light-oak material already used for the light-wood furniture
- *     overrides elsewhere in this codebase. (Note: this is a different,
- *     higher-confidence reference than the earlier per-item `slots` guess
- *     on furniture pieces — `SlabNode`'s own slot key is documented in its
- *     schema as literally `surface`, not a guessed glb-internal name.)
+ *   - Whole-house wood floor: TRIED AND REVERTED. This brief explicitly
+ *     calls out "wooden floors cover the entire house," so a `SlabNode`
+ *     spanning the full footprint was added — but after deploying, the live
+ *     scene started rendering as flat gray/textureless (walls and furniture
+ *     too, not just the floor), and refreshing didn't fix it, meaning the
+ *     saved scene data itself was the problem, not a transient browser
+ *     issue. No SlabNode had ever been used in any hand-authored replica
+ *     file before this, so it's the prime suspect (likely: the slab polygon
+ *     sitting exactly on the wall footprint with zero inset produced
+ *     degenerate render geometry). Reverted; floor material is out of scope
+ *     again until a SlabNode can be verified working against the real
+ *     renderer. If you want this retried, it needs to happen somewhere it
+ *     can actually be visually checked before shipping, not guessed blind.
  *   - Dedicated tatami room removed. v1 had a stand-alone tatami room; this
  *     brief's explicit left-to-right room list no longer includes one — it
  *     only mentions "tatami" once, describing it as part of the unified
@@ -63,7 +65,9 @@ import { catalogItem } from './item-catalog'
  *   - Wooden pet beds / puppy ornaments (pet corner stays empty, labeled).
  *   - Camera/render style notes (45° isometric cutaway, dollhouse/diorama
  *     look, lighting, 8K) — renderer/viewer settings, not something this
- *     wall/zone/item/slab builder controls.
+ *     wall/zone/item builder controls.
+ *   - Whole-house wood floor — see "What changed vs. v1" above; tried,
+ *     broke the live scene, reverted.
  *
  * Matched fairly directly: `kitchen`, `kitchenBar` (island), `stool` x3
  * (catalog default is black — matches "black bar stools as embellishments"
@@ -134,18 +138,17 @@ export async function buildAndSaveApartmentReplica3(
   const allWalls = [south, east, north, west, rightDivider, bathBedroomDivider, bedroomDivider]
   for (const wall of allWalls) scene.createNode(wall, level.id)
 
-  // Whole-house wood floor — "wooden floors cover the entire house."
-  const floorSlab = SlabNode.parse({
-    polygon: [
-      [0, 0],
-      [14, 0],
-      [14, 7],
-      [0, 7],
-    ],
-    slots: { surface: 'library:wood-woodfine1' },
-    autoFromWalls: false,
-  })
-  scene.createNode(floorSlab, level.id)
+  // NOTE: a whole-house wood-floor SlabNode was added here for the "wooden
+  // floors cover the entire house" ask, then reverted — the live app
+  // started showing this scene as flat gray/textureless (walls AND
+  // furniture, not just the floor) and refreshing didn't fix it, which
+  // points to the slab geometry (its polygon sits exactly on the wall
+  // footprint with zero inset) breaking something at render time badly
+  // enough to poison the whole scene's material state. No SlabNode has
+  // ever been used successfully in any of these hand-authored replica
+  // files before — this was the first attempt, and it's untested against
+  // the real renderer. Reverted until it can be verified working; floor
+  // material stays out of scope for now, same as apartment-1.
 
   const zones: { name: string; polygon: [number, number][]; wallIds: string[]; metadata?: Record<string, unknown> }[] = [
     {

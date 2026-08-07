@@ -7,7 +7,6 @@ import {
   LevelNode,
   ItemNode,
   DoorNode,
-  SlabNode,
   RoofNode,
   RoofSegmentNode,
   type AssetInput,
@@ -64,11 +63,8 @@ import { catalogItem } from './item-catalog'
  *
  *   3. Stepping-stone paths and true lawn/grass: no PathNode and no grass
  *      material exist anywhere in this codebase (checked the full node
- *      schema and material library). The courtyard ground below uses
- *      `flooring-ground13` ("Earth Ground," the closest real outdoor-
- *      surface material) as a stand-in for lawn — it will NOT look like
- *      grass. No stepping-stone path is modeled at all; there's nothing in
- *      the catalog or schema to build one from.
+ *      schema and material library), so neither is modeled at all — no
+ *      stand-in either (see note #5 for why).
  *
  *   4. "Log louvered sunshade eaves": not a modelable structural element
  *      here (no louver/awning/pergola node). Approximated with a generous
@@ -76,12 +72,17 @@ import { catalogItem } from './item-catalog'
  *      edge/fascia material — reads as "wide sheltering eaves," not
  *      literal louvers.
  *
- *   5. "Outdoor anticorrosive wood flooring" for the whole house: no
- *      dedicated outdoor decking material exists in the material library
- *      (checked — every wood-category entry is floor/wall/furniture only,
- *      none tagged `outdoor`). Reused `wood-woodfine1`, the same confirmed
- *      light-oak/log-tone floor material used elsewhere in this project,
- *      for the interior slab.
+ *   5. Floor material (whole-house wood flooring) and courtyard ground
+ *      (lawn stand-in) were both TRIED AND REVERTED. A `SlabNode` for the
+ *      interior floor and a second ring-shaped `SlabNode` for the courtyard
+ *      were both added, then pulled after the same technique broke
+ *      apartment-3's scene (rendered flat gray/textureless — walls and
+ *      furniture too, not just the floor — and refreshing didn't fix it,
+ *      meaning the saved scene data was bad, not a transient glitch). No
+ *      SlabNode had been used successfully in any hand-authored replica
+ *      file before that attempt, so it's reverted here too rather than
+ *      risk the same failure. Floor/ground materials stay out of scope
+ *      until SlabNode usage is verified working.
  *
  *   6. This is the FIRST roof (`RoofNode`/`RoofSegmentNode`) any of these
  *      hand-authored replica files has built — apartment-1 and apartment-3
@@ -167,44 +168,18 @@ export async function buildAndSaveApartmentReplica2(
   const allWalls = [south, east, north, west, bedroomDivider, bathWestWall, bathSouthWall]
   for (const wall of allWalls) scene.createNode(wall, level.id)
 
-  // Whole-house floor — "paved with log-colored outdoor anticorrosive wood
-  // flooring." See header note #5 for why this reuses the interior
-  // light-oak material rather than a dedicated decking material.
-  const floorSlab = SlabNode.parse({
-    polygon: [
-      [0, 0],
-      [7, 0],
-      [7, 5],
-      [0, 5],
-    ],
-    slots: { surface: 'library:wood-woodfine1' },
-    autoFromWalls: false,
-  })
-  scene.createNode(floorSlab, level.id)
-
-  // Courtyard ground — a ring around the house footprint. See header note
-  // #3: this is a stand-in for "lawn," not real grass (no grass material
-  // exists), and there is no stepping-stone path.
-  const courtyardSlab = SlabNode.parse({
-    polygon: [
-      [-3, -3],
-      [10, -3],
-      [10, 8],
-      [-3, 8],
-    ],
-    holes: [
-      [
-        [0, 0],
-        [7, 0],
-        [7, 5],
-        [0, 5],
-      ],
-    ],
-    slots: { surface: 'library:flooring-ground13' },
-    elevation: 0,
-    autoFromWalls: false,
-  })
-  scene.createNode(courtyardSlab, level.id)
+  // NOTE: a whole-house wood-floor SlabNode and a courtyard "lawn" SlabNode
+  // (Earth Ground material, ring-shaped around the house via a hole) were
+  // both added here for the flooring/courtyard-ground asks, then reverted.
+  // The same SlabNode approach was tried in apartment-3 for its floor and
+  // the live scene came back flat gray/textureless — walls and furniture
+  // too, not just the slab — and refreshing didn't fix it, meaning the
+  // saved scene data itself was broken, not a one-off browser glitch. No
+  // SlabNode has ever been used successfully in any hand-authored replica
+  // file before either of these attempts, so both are reverted together
+  // until SlabNode usage can be verified against the real renderer rather
+  // than guessed. Floor and courtyard-ground materials stay out of scope
+  // for now.
 
   // Roof — hip, light green top, log-toned edge, generous overhang
   // standing in for wide sheltering eaves. See header note #4 and #6.
