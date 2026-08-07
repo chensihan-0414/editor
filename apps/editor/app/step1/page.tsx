@@ -10,6 +10,7 @@ import { clipEdgeToSolidSegments, computeModuleRects, computeOpenBoundaries, typ
 import { furnishRoomPlacements, type RoomType } from '@/lib/prefab/furnishing'
 import { buildAndSaveApartmentReplica1 } from '@/lib/prefab/replica-apartment-1'
 import { buildAndSaveApartmentReplica2 } from '@/lib/prefab/replica-apartment-2'
+import { buildAndSaveApartmentReplica3 } from '@/lib/prefab/replica-apartment-3'
 import { parseCustomerRequest } from '@/lib/prefab/stage1'
 
 // Fixed, hand-authored layouts that bypass the generic module packer
@@ -18,6 +19,7 @@ import { parseCustomerRequest } from '@/lib/prefab/stage1'
 const REPLICA_BUILDERS: Record<string, (name?: string) => ReturnType<typeof buildAndSaveApartmentReplica1>> = {
   'apartment-1': buildAndSaveApartmentReplica1,
   'apartment-2': buildAndSaveApartmentReplica2,
+  'apartment-3': buildAndSaveApartmentReplica3,
 }
 
 const WALL_THICKNESS = 0.15
