@@ -21,13 +21,14 @@ const REPLICA_BUILDERS: Record<string, (name?: string) => ReturnType<typeof buil
 const WALL_THICKNESS = 0.15
 const WALL_HEIGHT = 2.7
 
-// One style preset, applied to every generated wall for now — a warm,
-// light plaster finish (2026 trend research: warm whites reading as more
-// "grounded" than cold/sterile grays). Swapping this for a per-market or
-// per-style constant is the natural next step once this one is validated.
+// One style preset, applied to every generated wall for now. Switched from
+// a warm off-white (#f5f1ea) to pure white per reference-image feedback:
+// "色彩严格控制：纯白墙面 + 浅原木主色" — the target look is stark white
+// walls against light oak furniture/flooring, not a warm plaster tone.
+// Keep this in sync with WALL_MATERIAL in lib/prefab/replica-apartment-1.ts.
 const MODERN_MINIMALIST_WALL_MATERIAL = {
-  preset: 'plaster' as const,
-  properties: { color: '#f5f1ea', roughness: 0.65, metalness: 0, opacity: 1, transparent: false, side: 'front' as const },
+  preset: 'white' as const,
+  properties: { color: '#ffffff', roughness: 0.85, metalness: 0, opacity: 1, transparent: false, side: 'front' as const },
 }
 
 // Which of our module catalog IDs get auto-furnished, and with which of
