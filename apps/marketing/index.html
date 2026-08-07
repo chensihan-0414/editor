@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Custom Prefab House · Go Global</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=Onest:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="bg-layer" aria-hidden="true"></div>
+
+
+<header class="site-header">
+  <div class="brand">
+    <span class="brand-mark">H</span>
+    <span class="brand-name" data-i18n="brandName">Custom Prefab House</span>
+  </div>
+  <nav class="nav-links">
+    <a href="#positioning" data-i18n="navMarket">Location</a>
+    <a href="#quickStart" data-i18n="navQuickStart">Quick Start</a>
+    <a href="#customRequest" data-i18n="navCustom">Custom Design</a>
+    <a href="#recentProjects" data-i18n="navRecent">Recent Projects</a>
+  </nav>
+  <div class="lang-switch" id="langSwitch">
+    <button class="lang-btn" data-lang="zh" type="button">中文</button>
+    <button class="lang-btn active" data-lang="en" type="button">EN</button>
+  </div>
+  <button class="menu-toggle" id="menuToggle" type="button" aria-label="Menu" aria-expanded="false">
+    <span></span><span></span><span></span>
+  </button>
+</header>
+
+<div class="mobile-menu" id="mobileMenu">
+  <a href="#positioning" data-i18n="navMarket">Location</a>
+  <a href="#quickStart" data-i18n="navQuickStart">Quick Start</a>
+  <a href="#customRequest" data-i18n="navCustom">Custom Design</a>
+  <a href="#recentProjects" data-i18n="navRecent">Recent Projects</a>
+</div>
+
+<main>
+  <section class="hero">
+    <p class="eyebrow" data-i18n="eyebrow">AI-POWERED PREFAB WORKSPACE</p>
+    <h1 data-i18n="heroTitle">Custom Prefab · Go Global</h1>
+    <p class="subtitle" data-i18n="heroSubtitle">Pick a target market, build your layout, see a 3D result in minutes.</p>
+  </section>
+
+  <section class="positioning" id="positioning">
+    <div class="section-head">
+      <h2 data-i18n="positioningLabel">Location · positioning</h2>
+      <p class="section-hint" data-i18n="positioningHint">PRIORITY MARKETS</p>
+    </div>
+    <div class="market-grid" id="marketGrid"></div>
+  </section>
+
+  <section class="quick-start" id="quickStart">
+    <div class="section-head">
+      <h2 data-i18n="quickStartLabel">⚡ Quick start</h2>
+      <p class="section-hint" data-i18n="quickStartHint">Check the rooms you need — up to 6 modules, results in seconds</p>
+    </div>
+
+    <div class="module-counter">
+      <span id="moduleCount">0</span><span class="counter-sep">/</span>6
+      <span class="counter-label" data-i18n="modulesLabel">modules</span>
+    </div>
+
+    <div class="recommend-card" id="recommendCard" hidden>
+      <div class="recommend-card-top">
+        <div class="recommend-text">
+          <span class="recommend-title" data-i18n="recommendTitle">Recommended for this market</span>
+          <span class="recommend-note" id="recommendNote"></span>
+        </div>
+        <button class="recommend-btn" id="recommendBtn" type="button" data-i18n="recommendViewBtn">View details</button>
+      </div>
+      <div class="recommend-photo-wrap" id="recommendPhotoWrap" hidden>
+        <img class="recommend-photo" id="recommendPhoto" alt="">
+      </div>
+    </div>
+
+    <div class="module-form" id="moduleForm"></div>
+
+    <div class="submit-row">
+      <button class="submit-btn" id="submitBtn" type="button" data-i18n="generateBtn">Generate</button>
+      <span class="selected-market" id="selectedMarketLabel"></span>
+    </div>
+
+    <div class="result-panel" id="resultPanel" hidden>
+      <div class="result-head">
+        <h3 data-i18n="resultLabel">Result</h3>
+        <button class="copy-btn" id="copyBtn" type="button" data-i18n="copyBtn">Copy JSON</button>
+      </div>
+      <pre id="resultJson"></pre>
+      <div id="continueRow" class="continue-row" hidden>
+        <a id="continueLink" class="continue-btn" href="#" target="_blank" rel="noopener" data-i18n="continueBtn">Continue building →</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="custom-request" id="customRequest">
+    <div class="section-head">
+      <h2 data-i18n="customRequestLabel">🎨 Didn't find what you need above?</h2>
+      <p class="section-hint" data-i18n="customRequestHint">CUSTOM AI-ASSISTED DESIGN</p>
+    </div>
+    <textarea
+      class="custom-request-textarea"
+      id="customRequestText"
+      data-i18n-placeholder="customRequestPlaceholder"
+      placeholder="e.g. an open kitchen connected to the dining room, plus a small home office"
+    ></textarea>
+    <div class="custom-request-row">
+      <button class="custom-request-btn" id="customRequestBtn" type="button" data-i18n="customRequestBtn">Request custom design</button>
+      <span class="custom-request-hint" data-i18n="customRequestSubHint">We'll email you a bespoke design — usually within 48 hours</span>
+    </div>
+  </section>
+
+  <section class="recent-projects" id="recentProjects">
+    <div class="section-head">
+      <h2 data-i18n="recentLabel">Recent projects</h2>
+      <p class="section-hint" data-i18n="recentHint">SAVED IN THIS BROWSER</p>
+    </div>
+    <div class="project-grid" id="projectGrid"></div>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <p data-i18n="footerNote">Generated results are a preview only — final dimensions pending factory confirmation.</p>
+</footer>
+
+<div class="modal-overlay" id="customModalOverlay" hidden>
+  <div class="modal-card">
+    <button class="modal-close" id="customModalClose" type="button" aria-label="Close">&times;</button>
+
+    <div id="customModalForm">
+      <h3 data-i18n="modalTitle">One more thing</h3>
+      <p class="modal-hint" data-i18n="modalHint">Where should we send your custom design?</p>
+      <input type="email" class="modal-input" id="customModalEmail" data-i18n-placeholder="modalEmailPlaceholder" placeholder="you@email.com">
+      <label class="modal-checkbox-row">
+        <input type="checkbox" id="customModalAgree">
+        <span data-i18n="modalAgree">I agree to be contacted about this request</span>
+      </label>
+      <p class="modal-error" id="modalError" hidden></p>
+      <button class="modal-submit-btn" id="customModalSubmit" type="button" data-i18n="modalSubmit">Submit request</button>
+    </div>
+
+    <div id="customModalSuccess" hidden>
+      <h3 data-i18n="modalSuccessTitle">Submitted</h3>
+      <p data-i18n="modalSuccessBody">We'll email you a custom design within 48 hours.</p>
+      <button class="modal-submit-btn" id="customModalDone" type="button" data-i18n="modalDone">Done</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="designSavedOverlay" hidden>
+  <div class="modal-card">
+    <button class="modal-close" id="designSavedClose" type="button" aria-label="Close">&times;</button>
+    <h3 data-i18n="designSavedTitle">Design saved</h3>
+    <p data-i18n="designSavedBody">Your design image has been downloaded. Ready to talk to a factory?</p>
+    <button class="modal-submit-btn" id="designSavedContactBtn" type="button" data-i18n="contactFactoryBtn">Contact factory</button>
+  </div>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
