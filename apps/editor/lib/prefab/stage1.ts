@@ -2,7 +2,10 @@ import { MODULE_CATALOG } from './catalog'
 
 const VALID_MODULE_IDS = Object.keys(MODULE_CATALOG)
 
-const SYSTEM_PROMPT = `You convert a customer's plain-language house request into a structured list of prefab modules. Output ONLY a JSON object, nothing else — no prose, no markdown fences.
+// Exported so stage1-deepseek.ts (the DeepSeek-backed variant used by
+// /api/parse-request) can reuse the exact same prompt instead of forking a
+// second copy that could drift out of sync.
+export const SYSTEM_PROMPT = `You convert a customer's plain-language house request into a structured list of prefab modules. Output ONLY a JSON object, nothing else — no prose, no markdown fences.
 
 Format: { "modules": [{ "moduleId": "...", "quantity": N }, ...], "unmapped": ["..."] }
 

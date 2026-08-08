@@ -1,11 +1,11 @@
 import type { NextRequest } from 'next/server'
 import { z } from 'zod'
-import { parseCustomerRequest } from '@/lib/prefab/stage1'
+import { parseCustomerRequestDeepSeek } from '@/lib/prefab/stage1-deepseek'
 import { guardSceneApiRequest, sceneApiJson, sceneApiPreflight } from '@/lib/scene-api-security'
 
 // Public-facing endpoint for the "type what you need, AI builds it" flow on
 // the request marketing site — a visitor's free-text description comes in
-// here, gets parsed into a module list server-side (using OUR Anthropic key,
+// here, gets parsed into a module list server-side (using OUR DeepSeek key,
 // never one the visitor supplies), and the site then builds/redirects into
 // the generated house via the existing /step1?data=... flow (buildStep1Url
 // in request's script.js).
@@ -19,8 +19,14 @@ import { guardSceneApiRequest, sceneApiJson, sceneApiPreflight } from '@/lib/sce
 //                                 from that domain gets a CORS rejection.
 //   PASCAL_SCENE_API_RATE_LIMIT — requests/minute/IP, defaults to 120.
 // PLUS a new one this route alone needs:
-//   ANTHROPIC_API_KEY — the site owner's own Claude API key, used
-//                         server-side only, never sent to the browser.
+//   DEEPSEEK_API_KEY — the site owner's own DeepSeek API key (from
+//                        platform.deepseek.com), used server-side only,
+//                        never sent to the browser. Parsing is done by
+//                        DeepSeek's deepseek-v4-flash model — see
+//                        lib/prefab/stage1-deepseek.ts for why DeepSeek
+//                        rather than the Anthropic-backed
+//                        lib/prefab/stage1.ts (which app/step1/page.tsx's
+//                        manual form still uses, unchanged).
 //
 // Auth token intentionally skipped (unlike /api/scenes): that token is
 // already publicly embedded in the editor's own client bundle
@@ -65,13 +71,13 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  const apiKey = process.env.ANTHROPIC_API_KEY
+  const apiKey = process.env.DEEPSEEK_API_KEY
   if (!apiKey) {
     return sceneApiJson(request, { error: 'server_not_configured' }, { status: 503 })
   }
 
   try {
-    const result = await parseCustomerRequest(parsed.data.text, apiKey)
+    const result = await parseCustomerRequestDeepSeek(parsed.data.text, apiKey)
     return sceneApiJson(request, result)
   } catch (error) {
     const message = error instanceof Error ? error.message : 'unexpected_error'
